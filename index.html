@@ -468,10 +468,10 @@
   <script>
     const BASE_5K = { width: 5120, height: 2880 };
     const SIMS = [
-      { id: "5k", label: "5K", width: 5120, height: 2880, pitch: 1, maskOpacity: 0 },
-      { id: "4k", label: "4K", width: 3840, height: 2160, pitch: 5120 / 3840, maskOpacity: 0.42 },
-      { id: "2k", label: "2K", width: 2560, height: 1440, pitch: 5120 / 2560, maskOpacity: 0.58 },
-      { id: "1k", label: "1K / Full HD", width: 1920, height: 1080, pitch: 5120 / 1920, maskOpacity: 0.72 }
+      { id: "5k", label: "5K", width: 5120, height: 2880, pitch: 1, gapOpacity: 0 },
+      { id: "4k", label: "4K", width: 3840, height: 2160, pitch: 5120 / 3840, gapOpacity: 0.2 },
+      { id: "2k", label: "2K", width: 2560, height: 1440, pitch: 5120 / 2560, gapOpacity: 0.28 },
+      { id: "1k", label: "1K / Full HD", width: 1920, height: 1080, pitch: 5120 / 1920, gapOpacity: 0.36 }
     ];
     const SUPPORTED_IMAGE = [".png", ".jpg", ".jpeg", ".webp"];
     const SUPPORTED_VIDEO = [".mp4", ".webm"];
@@ -804,17 +804,27 @@
       if (!opacity || pitch <= 1.05) return;
 
       const step = pitch;
-      const gap = Math.max(0.12, pitch * 0.14);
-      const start = Math.max(0.4, pitch - gap);
+      const seam = Math.max(0.28, Math.min(0.72, pitch * 0.07));
+      const dot = Math.max(0.5, Math.min(1.15, pitch * 0.24));
+      const seamAlpha = Math.min(0.16, opacity * 0.35);
+      const dotAlpha = opacity;
+      const seamStart = Math.max(0.35, pitch - seam);
+      const dotOffset = dot / 2;
 
       ctx.save();
-      ctx.globalAlpha = opacity;
-      ctx.fillStyle = "#000";
-      for (let x = start; x < width; x += step) {
-        ctx.fillRect(x, 0, gap, height);
+      ctx.fillStyle = `rgba(0, 0, 0, ${seamAlpha})`;
+      for (let x = seamStart; x < width; x += step) {
+        ctx.fillRect(x, 0, seam, height);
       }
-      for (let y = start; y < height; y += step) {
-        ctx.fillRect(0, y, width, gap);
+      for (let y = seamStart; y < height; y += step) {
+        ctx.fillRect(0, y, width, seam);
+      }
+
+      ctx.fillStyle = `rgba(0, 0, 0, ${dotAlpha})`;
+      for (let y = seamStart; y < height; y += step) {
+        for (let x = seamStart; x < width; x += step) {
+          ctx.fillRect(x - dotOffset, y - dotOffset, dot, dot);
+        }
       }
       ctx.restore();
     }
@@ -841,7 +851,7 @@
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(buffer, 0, 0, downW, downH, 0, 0, canvas.width, canvas.height);
-      drawPixelGap(ctx, canvas.width, canvas.height, sim.pitch, sim.maskOpacity);
+      drawPixelGap(ctx, canvas.width, canvas.height, sim.pitch, sim.gapOpacity);
     }
 
     function drawAllNow() {

@@ -6,7 +6,8 @@ const Busboy = require("busboy");
 const root = __dirname;
 const bundledImagesDir = path.join(root, "images");
 const mediaDir = path.resolve(process.env.MEDIA_DIR || bundledImagesDir);
-const port = Number(process.env.PORT || 8899);
+const requestedPort = Number(process.env.PORT || 8899);
+const fallbackPorts = process.env.PORT ? [requestedPort] : [8899, 8900, 8910, 8920];
 const allowedMediaExt = new Set([".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm"]);
 const adminPassword = process.env.ADMIN_PASSWORD || "";
 
@@ -186,7 +187,7 @@ function handleUpload(req, res, url) {
   req.pipe(busboy);
 }
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     if (url.pathname === "/api/media") {
@@ -231,8 +232,22 @@ const server = http.createServer((req, res) => {
     res.writeHead(500);
     res.end("Server error");
   }
-});
+}
 
-server.listen(port, () => {
-  console.log(`5K resolution demo is running on http://localhost:${port}`);
-});
+function listenWithFallback(index = 0) {
+  const port = fallbackPorts[index];
+  const server = http.createServer(handleRequest);
+  server.once("error", (err) => {
+    if ((err.code === "EADDRINUSE" || err.code === "EACCES") && index < fallbackPorts.length - 1) {
+      console.warn(`Port ${port} is unavailable, trying ${fallbackPorts[index + 1]}...`);
+      listenWithFallback(index + 1);
+      return;
+    }
+    throw err;
+  });
+  server.listen(port, () => {
+    console.log(`5K resolution demo is running on http://localhost:${port}`);
+  });
+}
+
+listenWithFallback();
