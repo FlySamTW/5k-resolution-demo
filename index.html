@@ -53,7 +53,6 @@
 
     .top-left,
     .top-actions,
-    .filters,
     .pager {
       display: flex;
       align-items: center;
@@ -259,23 +258,30 @@
     }
 
     .thumb-panel {
+      position: relative;
       display: grid;
-      grid-template-rows: auto 1fr;
-      gap: 9px;
-      min-height: 148px;
-      max-height: 230px;
-      padding: 10px 12px;
+      grid-template-rows: 1fr;
+      min-height: 118px;
+      max-height: 190px;
+      padding: 8px 12px;
       overflow: hidden;
       background: var(--panel);
       border-top: 1px solid var(--line);
     }
 
-    .thumb-top {
+    .pager {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      z-index: 5;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      min-width: 0;
+      gap: 8px;
+      padding: 4px;
+      border: 1px solid rgba(62, 57, 50, 0.75);
+      border-radius: 10px;
+      background: rgba(24, 24, 23, 0.88);
+      backdrop-filter: blur(4px);
     }
 
     .thumb-grid {
@@ -284,13 +290,14 @@
       gap: 8px;
       min-height: 0;
       overflow: hidden;
+      padding-right: min(380px, 34vw);
     }
 
     .thumb {
       display: grid;
       grid-template-rows: 1fr auto;
       min-width: 0;
-      height: clamp(78px, 10vh, 122px);
+      height: clamp(82px, 11vh, 132px);
       padding: 0;
       overflow: hidden;
       border: 1px solid #3b3731;
@@ -402,7 +409,7 @@
 
   <main class="main" id="media-stage" aria-label="5K、4K、2K、1K 同面積比較區">
     <img id="main-img" class="main-media" alt="原始圖片來源">
-    <video id="main-video" class="main-media" muted loop playsinline preload="metadata"></video>
+    <video id="main-video" class="main-media" muted loop playsinline preload="auto"></video>
 
     <article class="compare-panel" data-panel-id="5k">
       <div class="sim-label">
@@ -454,13 +461,10 @@
   <button class="immersive-exit" id="immersive-exit" type="button">返回選單</button>
 
   <footer class="thumb-panel">
-    <div class="thumb-top">
-      <div class="filters" id="filters"></div>
-      <div class="pager">
-        <button class="pager-btn" id="prev-page" type="button">上一頁</button>
-        <span id="page-indicator">第 1 / 1 頁</span>
-        <button class="pager-btn" id="next-page" type="button">下一頁</button>
-      </div>
+    <div class="pager">
+      <button class="pager-btn" id="prev-page" type="button">上一頁</button>
+      <span id="page-indicator">第 1 / 1 頁</span>
+      <button class="pager-btn" id="next-page" type="button">下一頁</button>
     </div>
     <div class="thumb-grid" id="thumb-grid"></div>
     <div class="empty" id="empty-msg" hidden>尚未找到可播放媒體，請將 PNG、JPG、WEBP 或 MP4 放入 images 後重新整理。</div>
@@ -489,7 +493,6 @@
     const crosshair = document.getElementById("crosshair");
     const statusText = document.getElementById("status-text");
     const mediaCountBadge = document.getElementById("media-count-badge");
-    const filtersEl = document.getElementById("filters");
     const thumbGrid = document.getElementById("thumb-grid");
     const emptyMsg = document.getElementById("empty-msg");
     const prevBtn = document.getElementById("prev-page");
@@ -502,7 +505,6 @@
     let mediaList = [];
     let filtered = [];
     let activeIndex = -1;
-    let activeFilter = "all";
     let page = 1;
     let pointerNormX = 0.5;
     let pointerNormY = 0.5;
@@ -587,29 +589,8 @@
       return { name: "內建測試影像", type: "image", src: canvas.toDataURL("image/png") };
     }
 
-    function renderFilters() {
-      const options = [
-        { key: "all", label: "全部" },
-        { key: "image", label: "圖片" },
-        { key: "video", label: "影片" }
-      ];
-      filtersEl.replaceChildren();
-      options.forEach((option) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = `chip${activeFilter === option.key ? " active" : ""}`;
-        btn.textContent = option.label;
-        btn.addEventListener("click", () => {
-          activeFilter = option.key;
-          page = 1;
-          applyFilter();
-        });
-        filtersEl.appendChild(btn);
-      });
-    }
-
     function applyFilter() {
-      filtered = activeFilter === "all" ? mediaList.slice() : mediaList.filter((item) => item.type === activeFilter);
+      filtered = mediaList.slice();
       renderThumbPage();
     }
 
@@ -682,9 +663,7 @@
       if (autoSelectNew && added.length) {
         const preferred = [...added].reverse().find((item) => item.type === "image") || added[added.length - 1];
         activeIndex = Math.max(0, mediaList.findIndex((item) => mediaKey(item) === mediaKey(preferred)));
-        if (preferred.type === "image" && activeFilter === "video") activeFilter = "all";
-        const visibleItems = activeFilter === "all" ? mediaList : mediaList.filter((item) => item.type === activeFilter);
-        const visibleIndex = Math.max(0, visibleItems.findIndex((item) => mediaKey(item) === mediaKey(preferred)));
+        const visibleIndex = Math.max(0, mediaList.findIndex((item) => mediaKey(item) === mediaKey(preferred)));
         page = Math.max(1, Math.ceil((visibleIndex + 1) / ITEMS_PER_PAGE));
         applyFilter();
         await loadActiveMedia();
@@ -707,8 +686,30 @@
     function waitForVideo(video) {
       if (video.readyState >= 2 && video.videoWidth > 0) return Promise.resolve();
       return new Promise((resolve, reject) => {
-        video.onloadeddata = () => resolve();
-        video.onerror = () => reject(new Error("影片載入失敗"));
+        let done = false;
+        const cleanup = () => {
+          video.removeEventListener("loadeddata", onReady);
+          video.removeEventListener("canplay", onReady);
+          video.removeEventListener("error", onError);
+        };
+        const finish = () => {
+          if (done) return;
+          done = true;
+          cleanup();
+          resolve();
+        };
+        const onReady = () => {
+          if (video.videoWidth > 0) finish();
+        };
+        const onError = () => {
+          if (done) return;
+          done = true;
+          cleanup();
+          reject(new Error("影片載入失敗"));
+        };
+        video.addEventListener("loadeddata", onReady);
+        video.addEventListener("canplay", onReady);
+        video.addEventListener("error", onError);
       });
     }
 
@@ -726,6 +727,7 @@
           mainImg.style.display = "none";
           mainVideo.src = active.src;
           mainVideo.style.display = "none";
+          mainVideo.load();
           await waitForVideo(mainVideo);
           await mainVideo.play().catch(() => {});
         } else {
@@ -1044,7 +1046,6 @@
     async function init() {
       applyInitialMode();
       bindEvents();
-      renderFilters();
       resizeCanvases();
       mediaList = await fetchMediaList();
       if (!mediaList.length) {

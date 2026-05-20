@@ -17,8 +17,8 @@ $prefix = "http://localhost:$Port/"
 $listener.Prefixes.Add($prefix)
 $listener.Start()
 
-Write-Host "展示伺服器已啟動：$prefix" -ForegroundColor Green
-Write-Host "按 Ctrl+C 可停止伺服器。" -ForegroundColor Yellow
+Write-Host "Demo server is running: $prefix" -ForegroundColor Green
+Write-Host "Press Ctrl+C to stop the server." -ForegroundColor Yellow
 
 function Get-ContentType([string]$path) {
     switch ([IO.Path]::GetExtension($path).ToLowerInvariant()) {
@@ -31,6 +31,7 @@ function Get-ContentType([string]$path) {
         ".jpeg" { "image/jpeg" }
         ".webp" { "image/webp" }
         ".mp4" { "video/mp4" }
+        ".webm" { "video/webm" }
         default { "application/octet-stream" }
     }
 }
@@ -44,17 +45,56 @@ function Write-JsonResponse($response, $obj) {
     $response.OutputStream.Write($bytes, 0, $bytes.Length)
 }
 
-function Write-FileResponse($response, [string]$path) {
+function Write-FileResponse($request, $response, [string]$path) {
     if (-not (Test-Path $path -PathType Leaf)) {
         $response.StatusCode = 404
         return
     }
 
-    $bytes = [IO.File]::ReadAllBytes($path)
-    $response.StatusCode = 200
+    $file = Get-Item -LiteralPath $path
+    $length = [int64]$file.Length
+    $start = [int64]0
+    $end = [int64]($length - 1)
+    $range = $request.Headers["Range"]
+
+    if ($range -match "^bytes=(\d*)-(\d*)$") {
+        if ($matches[1]) { $start = [int64]$matches[1] }
+        if ($matches[2]) { $end = [int64]$matches[2] }
+        if ($start -le $end -and $end -lt $length) {
+            $response.StatusCode = 206
+            $response.AddHeader("Accept-Ranges", "bytes")
+            $response.AddHeader("Content-Range", "bytes $start-$end/$length")
+        }
+        else {
+            $response.StatusCode = 416
+            $response.AddHeader("Content-Range", "bytes */$length")
+            return
+        }
+    }
+    else {
+        $response.StatusCode = 200
+        $response.AddHeader("Accept-Ranges", "bytes")
+    }
+
     $response.ContentType = Get-ContentType $path
-    $response.ContentLength64 = $bytes.Length
-    $response.OutputStream.Write($bytes, 0, $bytes.Length)
+    $response.ContentLength64 = $end - $start + 1
+
+    $stream = [IO.File]::OpenRead($path)
+    try {
+        $stream.Seek($start, [IO.SeekOrigin]::Begin) | Out-Null
+        $buffer = New-Object byte[] 65536
+        $remaining = $response.ContentLength64
+        while ($remaining -gt 0) {
+            $readSize = [Math]::Min($buffer.Length, $remaining)
+            $read = $stream.Read($buffer, 0, $readSize)
+            if ($read -le 0) { break }
+            $response.OutputStream.Write($buffer, 0, $read)
+            $remaining -= $read
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
 }
 
 try {
@@ -83,7 +123,7 @@ try {
                     $response.StatusCode = 403
                 }
                 else {
-                    Write-FileResponse $response $fullPath
+                    Write-FileResponse $request $response $fullPath
                 }
             }
         }
