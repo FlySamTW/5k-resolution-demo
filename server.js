@@ -2,6 +2,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const Busboy = require("busboy");
+const { ZipArchive } = require("archiver");
 
 const root = __dirname;
 const bundledImagesDir = path.join(root, "images");
@@ -10,6 +11,13 @@ const requestedPort = Number(process.env.PORT || 8899);
 const fallbackPorts = process.env.PORT ? [requestedPort] : [8899, 8900, 8910, 8920];
 const allowedMediaExt = new Set([".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm"]);
 const adminPassword = process.env.ADMIN_PASSWORD || "";
+const localPackageFiles = [
+  "index.html",
+  "啟動展示.bat",
+  "start-demo.ps1",
+  "watch-printscreen.ps1",
+  "LOCAL_APP_README.txt"
+];
 
 function contentType(filePath) {
   switch (path.extname(filePath).toLowerCase()) {
@@ -82,6 +90,41 @@ function sendFile(req, res, filePath) {
     res.writeHead(200, { ...headers, "Content-Length": stat.size });
     fs.createReadStream(filePath).pipe(res);
   });
+}
+
+function sendLocalAppZip(res) {
+  const archive = new ZipArchive({ zlib: { level: 9 } });
+
+  archive.on("warning", (err) => {
+    if (err.code !== "ENOENT") {
+      console.warn(err);
+    }
+  });
+
+  archive.on("error", (err) => {
+    console.error(err);
+    if (!res.headersSent) {
+      res.writeHead(500);
+    }
+    res.end();
+  });
+
+  res.writeHead(200, {
+    "Content-Type": "application/zip",
+    "Content-Disposition": "attachment; filename=\"5k-resolution-demo-local.zip\"",
+    "Cache-Control": "no-store"
+  });
+
+  archive.pipe(res);
+
+  localPackageFiles.forEach((name) => {
+    const filePath = path.join(root, name);
+    if (fs.existsSync(filePath)) {
+      archive.file(filePath, { name });
+    }
+  });
+  archive.append("", { name: "images/.keep" });
+  archive.finalize();
 }
 
 function safeName(name) {
@@ -192,6 +235,11 @@ function handleRequest(req, res) {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     if (url.pathname === "/api/media") {
       sendJson(res, { files: mediaFiles() });
+      return;
+    }
+
+    if (url.pathname === "/download-local-app") {
+      sendLocalAppZip(res);
       return;
     }
 

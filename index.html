@@ -41,12 +41,13 @@
     }
 
     .topbar {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 18px;
       min-height: 54px;
-      padding: 10px 16px;
+      padding: 10px 54px 10px 16px;
       background: #191817;
       border-bottom: 1px solid var(--line);
     }
@@ -107,6 +108,43 @@
     .pager-btn:disabled {
       cursor: default;
       opacity: 0.42;
+    }
+
+    .download-app {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid rgba(111, 82, 50, 0.9);
+      border-radius: 8px;
+      background: #241f1a;
+      color: #ffe2bd;
+      text-decoration: none;
+      opacity: 0.72;
+    }
+
+    .download-app:hover {
+      opacity: 1;
+      background: #3a2d20;
+      border-color: #b57b3c;
+    }
+
+    .download-app svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    body.cloud .download-app {
+      display: inline-flex;
     }
 
     .main {
@@ -405,6 +443,13 @@
     </div>
     <div class="badge" id="media-count-badge">媒體 0 筆</div>
     <div class="status" id="status-text">正在啟動展示...</div>
+    <a class="download-app" href="/download-local-app" title="下載本機版" aria-label="下載本機版">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3v12"></path>
+        <path d="m7 10 5 5 5-5"></path>
+        <path d="M5 21h14"></path>
+      </svg>
+    </a>
   </header>
 
   <main class="main" id="media-stage" aria-label="5K、4K、2K、1K 同面積比較區">
@@ -524,6 +569,12 @@
 
     function setStatus(text) {
       statusText.textContent = text;
+    }
+
+    function markCloudMode() {
+      const host = window.location.hostname;
+      const isLocal = host === "localhost" || host === "127.0.0.1" || host === "" || window.location.protocol === "file:";
+      document.body.classList.toggle("cloud", !isLocal);
     }
 
     function fileType(name) {
@@ -1044,6 +1095,7 @@
     }
 
     async function init() {
+      markCloudMode();
       applyInitialMode();
       bindEvents();
       resizeCanvases();
