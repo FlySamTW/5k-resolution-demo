@@ -33,7 +33,7 @@ http://localhost:8899/?mode=immersive
 
 部署在 Zeabur 時，小型素材可以一起放進 Git repo 的 `images/`，推送後讓 Zeabur 重新部署。
 
-大型影片不建議放進 Git，本專案已預設忽略 `images/*.mp4` 與 `images/*.webm`，避免不小心推送超大檔案。若希望上線後直接從網頁後台上傳素材，請在 Zeabur 掛載 Volume，並設定：
+大型影片不建議放進 Git；若影片已壓到 100MB 以下，可以先放進 `images/` 隨 Git 部署。若希望上線後直接從網頁後台上傳素材，請在 Zeabur 掛載 Volume，並設定：
 
 ```text
 MEDIA_DIR=/data/media

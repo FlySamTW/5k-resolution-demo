@@ -25,7 +25,7 @@ exit /b 1
 
 :OpenBrowser
 echo [OK] Demo server is ready at %URL%
-start "" "%URL%/?mode=immersive"
+start "" "%URL%/"
 echo.
 echo Browser opened. This launcher can be closed safely.
 pause
