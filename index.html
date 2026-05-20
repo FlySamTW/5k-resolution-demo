@@ -220,6 +220,25 @@
       transform: translate(-50%, -50%);
     }
 
+    .immersive-exit {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 60;
+      display: none;
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 216, 163, 0.38);
+      border-radius: 8px;
+      background: rgba(10, 10, 10, 0.62);
+      color: #ffe4c2;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+    }
+
+    body.immersive .immersive-exit {
+      display: block;
+    }
+
     .hint {
       position: absolute;
       right: auto;
@@ -431,6 +450,8 @@
     </div>
   </main>
 
+  <button class="immersive-exit" id="immersive-exit" type="button">返回選單</button>
+
   <footer class="thumb-panel">
     <div class="thumb-top">
       <div class="filters" id="filters"></div>
@@ -474,6 +495,7 @@
     const pageIndicator = document.getElementById("page-indicator");
     const modeBtn = document.getElementById("mode-btn");
     const fullscreenBtn = document.getElementById("fullscreen-btn");
+    const immersiveExitBtn = document.getElementById("immersive-exit");
 
     let mediaList = [];
     let filtered = [];
@@ -832,19 +854,9 @@
       rafPending = true;
       requestAnimationFrame(() => {
         rafPending = false;
-        const dx = targetNormX - pointerNormX;
-        const dy = targetNormY - pointerNormY;
-        if (Math.abs(dx) > 0.0008 || Math.abs(dy) > 0.0008) {
-          pointerNormX += dx * POINTER_EASING;
-          pointerNormY += dy * POINTER_EASING;
-        } else {
-          pointerNormX = targetNormX;
-          pointerNormY = targetNormY;
-        }
+        pointerNormX = targetNormX;
+        pointerNormY = targetNormY;
         drawAllNow();
-        if (Math.abs(targetNormX - pointerNormX) > 0.0008 || Math.abs(targetNormY - pointerNormY) > 0.0008) {
-          requestDraw();
-        }
       });
     }
 
@@ -882,9 +894,15 @@
         return;
       }
 
-      targetNormX = Math.min(1, Math.max(0, dragStartTargetX + (hit.normX - dragStartNormX) * DRAG_SENSITIVITY));
-      targetNormY = Math.min(1, Math.max(0, dragStartTargetY + (hit.normY - dragStartNormY) * DRAG_SENSITIVITY));
+      targetNormX = Math.min(1, Math.max(0, dragStartTargetX - (hit.normX - dragStartNormX) * DRAG_SENSITIVITY));
+      targetNormY = Math.min(1, Math.max(0, dragStartTargetY - (hit.normY - dragStartNormY) * DRAG_SENSITIVITY));
       setStatus(`平滑取樣中：X ${Math.round(targetNormX * 100)}% / Y ${Math.round(targetNormY * 100)}%`);
+      requestDraw();
+    }
+
+    function setImmersiveMode(enabled) {
+      document.body.classList.toggle("immersive", enabled);
+      modeBtn.textContent = enabled ? "控制台模式" : "沉浸比較";
       requestDraw();
     }
 
@@ -911,8 +929,7 @@
     function applyInitialMode() {
       const params = new URLSearchParams(window.location.search);
       if (params.get("mode") === "immersive") {
-        document.body.classList.add("immersive");
-        modeBtn.textContent = "控制台模式";
+        setImmersiveMode(true);
       }
     }
 
@@ -931,9 +948,17 @@
       window.addEventListener("resize", requestDraw);
 
       modeBtn.addEventListener("click", () => {
-        document.body.classList.toggle("immersive");
-        modeBtn.textContent = document.body.classList.contains("immersive") ? "控制台模式" : "沉浸比較";
-        requestDraw();
+        setImmersiveMode(!document.body.classList.contains("immersive"));
+      });
+
+      immersiveExitBtn.addEventListener("click", () => {
+        setImmersiveMode(false);
+      });
+
+      window.addEventListener("keydown", (evt) => {
+        if (evt.key === "Escape" && document.body.classList.contains("immersive")) {
+          setImmersiveMode(false);
+        }
       });
 
       fullscreenBtn.addEventListener("click", async () => {
