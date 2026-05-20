@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
   <title>5K / 4K / 2K / 1K 同面積顯示比較</title>
   <style>
     :root {
@@ -480,6 +481,7 @@
     const MAX_CANVAS_DPR = 4;
     const DRAG_SENSITIVITY = 0.28;
     const POINTER_EASING = 0.12;
+    const MEDIA_REFRESH_MS = 1800;
 
     const mainImg = document.getElementById("main-img");
     const mainVideo = document.getElementById("main-video");
@@ -510,6 +512,7 @@
     let rafPending = false;
     let videoLoopStarted = false;
     let isDragging = false;
+    let mediaRefreshTimer = 0;
     let dragStartNormX = 0.5;
     let dragStartNormY = 0.5;
     let dragStartTargetX = 0.5;
@@ -553,6 +556,10 @@
         .map((file) => typeof file === "string" ? { name: file, src: srcForName(file) } : file)
         .filter((file) => file && file.name && fileType(file.name) !== "unknown")
         .map((file) => ({ name: file.name, type: fileType(file.name), src: file.src || srcForName(file.name) }));
+    }
+
+    function mediaKey(item) {
+      return `${item.type}:${item.src || item.name}`;
     }
 
     function buildDemoMedia() {
@@ -658,6 +665,35 @@
 
     function getActiveMedia() {
       return activeIndex >= 0 ? mediaList[activeIndex] : null;
+    }
+
+    async function refreshMediaList({ autoSelectNew = false } = {}) {
+      if (window.location.protocol === "file:") return;
+
+      const previousKeys = new Set(mediaList.map(mediaKey));
+      const previousActive = getActiveMedia();
+      const nextList = await fetchMediaList();
+      if (!nextList.length) return;
+
+      const added = nextList.filter((item) => !previousKeys.has(mediaKey(item)));
+      const activeKey = previousActive ? mediaKey(previousActive) : "";
+      mediaList = nextList;
+
+      if (autoSelectNew && added.length) {
+        const preferred = [...added].reverse().find((item) => item.type === "image") || added[added.length - 1];
+        activeIndex = Math.max(0, mediaList.findIndex((item) => mediaKey(item) === mediaKey(preferred)));
+        if (preferred.type === "image" && activeFilter === "video") activeFilter = "all";
+        const visibleItems = activeFilter === "all" ? mediaList : mediaList.filter((item) => item.type === activeFilter);
+        const visibleIndex = Math.max(0, visibleItems.findIndex((item) => mediaKey(item) === mediaKey(preferred)));
+        page = Math.max(1, Math.ceil((visibleIndex + 1) / ITEMS_PER_PAGE));
+        applyFilter();
+        await loadActiveMedia();
+        setStatus(`已自動加入並選取截圖：${preferred.name}`);
+        return;
+      }
+
+      activeIndex = Math.max(0, mediaList.findIndex((item) => mediaKey(item) === activeKey));
+      applyFilter();
     }
 
     function waitForImage(img) {
@@ -803,6 +839,19 @@
     function drawPixelGap(ctx, width, height, pitch, opacity) {
       if (!opacity || pitch <= 1.05) return;
 
+      const cacheKey = `gap-${width}x${height}-${pitch.toFixed(4)}-${opacity.toFixed(3)}`;
+      let mask = buffers.get(cacheKey);
+      if (mask) {
+        ctx.drawImage(mask, 0, 0);
+        return;
+      }
+
+      mask = document.createElement("canvas");
+      mask.width = width;
+      mask.height = height;
+      buffers.set(cacheKey, mask);
+      const mctx = mask.getContext("2d");
+
       const step = pitch;
       const seam = Math.max(0.28, Math.min(0.72, pitch * 0.07));
       const dot = Math.max(0.5, Math.min(1.15, pitch * 0.24));
@@ -811,22 +860,23 @@
       const seamStart = Math.max(0.35, pitch - seam);
       const dotOffset = dot / 2;
 
-      ctx.save();
-      ctx.fillStyle = `rgba(0, 0, 0, ${seamAlpha})`;
+      mctx.save();
+      mctx.fillStyle = `rgba(0, 0, 0, ${seamAlpha})`;
       for (let x = seamStart; x < width; x += step) {
-        ctx.fillRect(x, 0, seam, height);
+        mctx.fillRect(x, 0, seam, height);
       }
       for (let y = seamStart; y < height; y += step) {
-        ctx.fillRect(0, y, width, seam);
+        mctx.fillRect(0, y, width, seam);
       }
 
-      ctx.fillStyle = `rgba(0, 0, 0, ${dotAlpha})`;
+      mctx.fillStyle = `rgba(0, 0, 0, ${dotAlpha})`;
       for (let y = seamStart; y < height; y += step) {
         for (let x = seamStart; x < width; x += step) {
-          ctx.fillRect(x - dotOffset, y - dotOffset, dot, dot);
+          mctx.fillRect(x - dotOffset, y - dotOffset, dot, dot);
         }
       }
-      ctx.restore();
+      mctx.restore();
+      ctx.drawImage(mask, 0, 0);
     }
 
     function drawSimulation(sim) {
@@ -1007,6 +1057,9 @@
       applyFilter();
       await loadActiveMedia();
       startVideoLoop();
+      mediaRefreshTimer = window.setInterval(() => {
+        refreshMediaList({ autoSelectNew: true }).catch(() => {});
+      }, MEDIA_REFRESH_MS);
     }
 
     init();

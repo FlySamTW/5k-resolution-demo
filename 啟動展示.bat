@@ -6,6 +6,8 @@ cd /d "%~dp0"
 set "BASE=%~dp0"
 set "URL="
 
+start "5K PrintScreen Watcher" /min powershell -STA -NoProfile -ExecutionPolicy Bypass -File "%BASE%watch-printscreen.ps1"
+
 call :CheckRunning 8899
 if defined URL goto :OpenBrowser
 call :CheckRunning 8900

@@ -10,7 +10,7 @@ if (-not (Test-Path $imagesDir)) {
     New-Item -Path $imagesDir -ItemType Directory | Out-Null
 }
 
-$allowedMediaExt = @(".png", ".jpg", ".jpeg", ".webp", ".mp4")
+$allowedMediaExt = @(".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm")
 
 $listener = New-Object System.Net.HttpListener
 $prefix = "http://localhost:$Port/"
