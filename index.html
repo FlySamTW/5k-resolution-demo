@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5K / 4K / 2K / 1K 同面積顯示比較</title>
+  <style>
+    :root {
+      --bg: #10100f;
+      --panel: #181817;
+      --panel-soft: #23211e;
+      --line: #3e3932;
+      --accent: #f1a64f;
+      --text: #f7f2ea;
+      --muted: #cfc4b5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft JhengHei", "Noto Sans TC", system-ui, sans-serif;
+    }
+
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 54px;
+      padding: 10px 16px;
+      background: #191817;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .top-left,
+    .top-actions,
+    .filters,
+    .pager {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .title {
+      font-size: clamp(18px, 1.35vw, 28px);
+      font-weight: 800;
+      color: #ffd7a1;
+      white-space: nowrap;
+    }
+
+    .status {
+      flex: 1;
+      min-width: 160px;
+      max-width: 52vw;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: clamp(12px, 0.85vw, 16px);
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .top-btn,
+    .chip,
+    .pager-btn {
+      border: 1px solid #6f5232;
+      background: #2b241c;
+      color: #ffe2bd;
+      border-radius: 8px;
+      padding: 7px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .top-btn:hover,
+    .chip:hover,
+    .pager-btn:hover:not(:disabled) {
+      background: #3a2d20;
+      border-color: #b57b3c;
+    }
+
+    .chip.active {
+      background: #64401f;
+      border-color: var(--accent);
+      color: #fff7ed;
+    }
+
+    .pager-btn:disabled {
+      cursor: default;
+      opacity: 0.42;
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: 0;
+      position: relative;
+      min-height: 0;
+      background: #050505;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .main.dragging {
+      cursor: grabbing;
+    }
+
+    .compare-panel {
+      position: relative;
+      display: grid;
+      grid-template-rows: 1fr;
+      min-height: 0;
+      overflow: hidden;
+      border-bottom: 1px solid #151515;
+      border-right: 1px solid #151515;
+    }
+
+    .compare-panel:nth-of-type(2n) {
+      border-right: 0;
+    }
+
+    .compare-panel:nth-of-type(n+3) {
+      border-bottom: 0;
+    }
+
+    .sim-label {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 4;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      max-width: min(340px, calc(100% - 24px));
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 216, 163, 0.28);
+      border-radius: 8px;
+      background: rgba(7, 7, 7, 0.58);
+      color: #fff4e5;
+      font-weight: 800;
+      font-size: clamp(14px, 1vw, 22px);
+      line-height: 1.2;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+      pointer-events: none;
+      backdrop-filter: blur(3px);
+    }
+
+    .sim-note {
+      color: #eadac7;
+      font-size: clamp(11px, 0.72vw, 14px);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .sim-canvas,
+    .dot-mask {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .dot-mask {
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .badge {
+      padding: 5px 10px;
+      border: 1px solid #6f5232;
+      border-radius: 999px;
+      background: #2b241c;
+      color: #ffd9aa;
+      white-space: nowrap;
+    }
+
+    .main-media {
+      display: none;
+    }
+
+    .crosshair {
+      position: absolute;
+      z-index: 4;
+      width: 32px;
+      height: 32px;
+      border: 2px solid #ffd39a;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px #111, 0 0 18px rgba(255, 190, 116, 0.55);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+    }
+
+    .hint {
+      position: absolute;
+      right: auto;
+      bottom: 14px;
+      left: 14px;
+      z-index: 3;
+      max-width: min(420px, calc(100% - 28px));
+      padding: 7px 10px;
+      border: 1px solid rgba(120, 110, 96, 0.55);
+      border-radius: 8px;
+      background: rgba(10, 10, 10, 0.56);
+      color: #f4eadf;
+      font-size: clamp(11px, 0.76vw, 14px);
+      line-height: 1.4;
+      pointer-events: none;
+      backdrop-filter: blur(3px);
+    }
+
+    .thumb-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 9px;
+      min-height: 148px;
+      max-height: 230px;
+      padding: 10px 12px;
+      overflow: hidden;
+      background: var(--panel);
+      border-top: 1px solid var(--line);
+    }
+
+    .thumb-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .thumb-grid {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 8px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .thumb {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      min-width: 0;
+      height: clamp(78px, 10vh, 122px);
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid #3b3731;
+      border-radius: 8px;
+      background: #111;
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .thumb.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(241, 166, 79, 0.68) inset;
+    }
+
+    .thumb-preview {
+      position: relative;
+      min-height: 0;
+      background: #0b0b0b;
+    }
+
+    .thumb-preview img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .thumb-kind {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+      font-size: 11px;
+    }
+
+    .thumb-name {
+      padding: 5px 7px;
+      overflow: hidden;
+      border-top: 1px solid #2d2a26;
+      color: #e5ddd3;
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .empty {
+      align-self: center;
+      color: #ffd19b;
+      font-size: 14px;
+    }
+
+    body.immersive {
+      grid-template-rows: 1fr;
+    }
+
+    body.immersive .topbar,
+    body.immersive .thumb-panel,
+    body.immersive .hint {
+      display: none;
+    }
+
+    body.immersive .main {
+      width: 100%;
+      height: 100%;
+    }
+
+    body.immersive .compare-panel {
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    @media (max-width: 1200px) {
+      .thumb-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 820px) {
+      body {
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .main {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(4, minmax(0, 1fr));
+      }
+
+      .thumb-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="top-left">
+      <div class="title">5K / 4K / 2K / 1K 同面積解析度比較</div>
+      <div class="top-actions">
+        <button class="top-btn" id="mode-btn" type="button">沉浸比較</button>
+        <button class="top-btn" id="fullscreen-btn" type="button">全螢幕</button>
+      </div>
+    </div>
+    <div class="badge" id="media-count-badge">媒體 0 筆</div>
+    <div class="status" id="status-text">正在啟動展示...</div>
+  </header>
+
+  <main class="main" id="media-stage" aria-label="5K、4K、2K、1K 同面積比較區">
+    <img id="main-img" class="main-media" alt="原始圖片來源">
+    <video id="main-video" class="main-media" muted loop playsinline preload="metadata"></video>
+
+    <article class="compare-panel" data-panel-id="5k">
+      <div class="sim-label">
+        <span>5K 原生區</span>
+        <span class="sim-note">5120 × 2880，基準點距</span>
+      </div>
+      <div class="canvas-wrap">
+        <canvas class="sim-canvas" id="canvas-5k"></canvas>
+        <svg class="dot-mask" id="mask-5k" aria-hidden="true"></svg>
+      </div>
+    </article>
+    <article class="compare-panel" data-panel-id="4k">
+      <div class="sim-label">
+        <span>4K 模擬區</span>
+        <span class="sim-note">3840 × 2160，點距約 1.33 倍</span>
+      </div>
+      <div class="canvas-wrap">
+        <canvas class="sim-canvas" id="canvas-4k"></canvas>
+        <svg class="dot-mask" id="mask-4k" aria-hidden="true"></svg>
+      </div>
+    </article>
+    <article class="compare-panel" data-panel-id="2k">
+      <div class="sim-label">
+        <span>2K 模擬區</span>
+        <span class="sim-note">2560 × 1440，點距約 2 倍</span>
+      </div>
+      <div class="canvas-wrap">
+        <canvas class="sim-canvas" id="canvas-2k"></canvas>
+        <svg class="dot-mask" id="mask-2k" aria-hidden="true"></svg>
+      </div>
+    </article>
+    <article class="compare-panel" data-panel-id="1k">
+      <div class="sim-label">
+        <span>1K / Full HD 模擬區</span>
+        <span class="sim-note">1920 × 1080，點距約 2.67 倍</span>
+      </div>
+      <div class="canvas-wrap">
+        <canvas class="sim-canvas" id="canvas-1k"></canvas>
+        <svg class="dot-mask" id="mask-1k" aria-hidden="true"></svg>
+      </div>
+    </article>
+
+    <div class="crosshair" id="crosshair"></div>
+    <div class="hint">
+      按住任一畫面拖曳，同步比較同一位置的細節與點距。
+    </div>
+  </main>
+
+  <footer class="thumb-panel">
+    <div class="thumb-top">
+      <div class="filters" id="filters"></div>
+      <div class="pager">
+        <button class="pager-btn" id="prev-page" type="button">上一頁</button>
+        <span id="page-indicator">第 1 / 1 頁</span>
+        <button class="pager-btn" id="next-page" type="button">下一頁</button>
+      </div>
+    </div>
+    <div class="thumb-grid" id="thumb-grid"></div>
+    <div class="empty" id="empty-msg" hidden>尚未找到可播放媒體，請將 PNG、JPG、WEBP 或 MP4 放入 images 後重新整理。</div>
+  </footer>
+
+  <script>
+    const BASE_5K = { width: 5120, height: 2880 };
+    const SIMS = [
+      { id: "5k", label: "5K", width: 5120, height: 2880, pitch: 1, maskOpacity: 0 },
+      { id: "4k", label: "4K", width: 3840, height: 2160, pitch: 5120 / 3840, maskOpacity: 0.42 },
+      { id: "2k", label: "2K", width: 2560, height: 1440, pitch: 5120 / 2560, maskOpacity: 0.58 },
+      { id: "1k", label: "1K / Full HD", width: 1920, height: 1080, pitch: 5120 / 1920, maskOpacity: 0.72 }
+    ];
+    const SUPPORTED_IMAGE = [".png", ".jpg", ".jpeg", ".webp"];
+    const SUPPORTED_VIDEO = [".mp4", ".webm"];
+    const STATIC_FALLBACK = ["unnamed (3).png", "unnamed (4).png"];
+    const ITEMS_PER_PAGE = 16;
+    const MAX_CANVAS_DPR = 4;
+    const DRAG_SENSITIVITY = 0.28;
+    const POINTER_EASING = 0.12;
+
+    const mainImg = document.getElementById("main-img");
+    const mainVideo = document.getElementById("main-video");
+    const mediaStage = document.getElementById("media-stage");
+    const crosshair = document.getElementById("crosshair");
+    const statusText = document.getElementById("status-text");
+    const mediaCountBadge = document.getElementById("media-count-badge");
+    const filtersEl = document.getElementById("filters");
+    const thumbGrid = document.getElementById("thumb-grid");
+    const emptyMsg = document.getElementById("empty-msg");
+    const prevBtn = document.getElementById("prev-page");
+    const nextBtn = document.getElementById("next-page");
+    const pageIndicator = document.getElementById("page-indicator");
+    const modeBtn = document.getElementById("mode-btn");
+    const fullscreenBtn = document.getElementById("fullscreen-btn");
+
+    let mediaList = [];
+    let filtered = [];
+    let activeIndex = -1;
+    let activeFilter = "all";
+    let page = 1;
+    let pointerNormX = 0.5;
+    let pointerNormY = 0.5;
+    let targetNormX = 0.5;
+    let targetNormY = 0.5;
+    let currentKind = "image";
+    let rafPending = false;
+    let videoLoopStarted = false;
+    let isDragging = false;
+    let dragStartNormX = 0.5;
+    let dragStartNormY = 0.5;
+    let dragStartTargetX = 0.5;
+    let dragStartTargetY = 0.5;
+
+    const buffers = new Map();
+
+    function setStatus(text) {
+      statusText.textContent = text;
+    }
+
+    function fileType(name) {
+      const lower = name.toLowerCase();
+      if (SUPPORTED_IMAGE.some((ext) => lower.endsWith(ext))) return "image";
+      if (SUPPORTED_VIDEO.some((ext) => lower.endsWith(ext))) return "video";
+      return "unknown";
+    }
+
+    function srcForName(name) {
+      return `images/${name.split("/").map(encodeURIComponent).join("/")}`;
+    }
+
+    async function fetchMediaList() {
+      if (window.location.protocol === "file:") {
+        return normalizeFiles(STATIC_FALLBACK);
+      }
+
+      try {
+        const response = await fetch("/api/media", { cache: "no-store" });
+        if (!response.ok) throw new Error("無法讀取媒體清單");
+        const data = await response.json();
+        if (!Array.isArray(data.files)) throw new Error("媒體清單格式不正確");
+        return normalizeFiles(data.files);
+      } catch (_err) {
+        return normalizeFiles(STATIC_FALLBACK);
+      }
+    }
+
+    function normalizeFiles(files) {
+      return files
+        .map((file) => typeof file === "string" ? { name: file, src: srcForName(file) } : file)
+        .filter((file) => file && file.name && fileType(file.name) !== "unknown")
+        .map((file) => ({ name: file.name, type: fileType(file.name), src: file.src || srcForName(file.name) }));
+    }
+
+    function buildDemoMedia() {
+      const canvas = document.createElement("canvas");
+      canvas.width = BASE_5K.width;
+      canvas.height = BASE_5K.height;
+      const ctx = canvas.getContext("2d");
+      const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      grad.addColorStop(0, "#113556");
+      grad.addColorStop(0.52, "#314b38");
+      grad.addColorStop(1, "#6b321c");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (let y = 0; y < canvas.height; y += 96) {
+        for (let x = 0; x < canvas.width; x += 96) {
+          ctx.fillStyle = (x / 96 + y / 96) % 2 === 0 ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.18)";
+          ctx.fillRect(x, y, 96, 96);
+        }
+      }
+      ctx.fillStyle = "#fff3df";
+      ctx.font = "800 180px Microsoft JhengHei, sans-serif";
+      ctx.fillText("5K DEMO SAMPLE", 250, 410);
+      ctx.font = "700 70px Microsoft JhengHei, sans-serif";
+      ctx.fillText("放入 images 資料夾即可替換為展示素材", 260, 560);
+      return { name: "內建測試影像", type: "image", src: canvas.toDataURL("image/png") };
+    }
+
+    function renderFilters() {
+      const options = [
+        { key: "all", label: "全部" },
+        { key: "image", label: "圖片" },
+        { key: "video", label: "影片" }
+      ];
+      filtersEl.replaceChildren();
+      options.forEach((option) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `chip${activeFilter === option.key ? " active" : ""}`;
+        btn.textContent = option.label;
+        btn.addEventListener("click", () => {
+          activeFilter = option.key;
+          page = 1;
+          applyFilter();
+        });
+        filtersEl.appendChild(btn);
+      });
+    }
+
+    function applyFilter() {
+      filtered = activeFilter === "all" ? mediaList.slice() : mediaList.filter((item) => item.type === activeFilter);
+      renderThumbPage();
+    }
+
+    function renderThumbPage() {
+      const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+      page = Math.max(1, Math.min(page, totalPages));
+      const current = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+      thumbGrid.replaceChildren();
+      emptyMsg.hidden = filtered.length > 0;
+
+      current.forEach((item) => {
+        const idx = mediaList.findIndex((entry) => entry.name === item.name && entry.type === item.type);
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `thumb${idx === activeIndex ? " active" : ""}`;
+
+        const preview = document.createElement("div");
+        preview.className = "thumb-preview";
+        if (item.type === "image") {
+          const img = document.createElement("img");
+          img.loading = "lazy";
+          img.decoding = "async";
+          img.src = item.src;
+          img.alt = item.name;
+          preview.appendChild(img);
+        }
+
+        const kind = document.createElement("div");
+        kind.className = "thumb-kind";
+        kind.textContent = item.type === "video" ? "影片" : "圖片";
+        preview.appendChild(kind);
+
+        const name = document.createElement("div");
+        name.className = "thumb-name";
+        name.textContent = item.name;
+        name.title = item.name;
+
+        card.append(preview, name);
+        card.addEventListener("click", () => {
+          activeIndex = idx;
+          loadActiveMedia();
+          renderThumbPage();
+        });
+        thumbGrid.appendChild(card);
+      });
+
+      pageIndicator.textContent = `第 ${page} / ${totalPages} 頁`;
+      prevBtn.disabled = page <= 1;
+      nextBtn.disabled = page >= totalPages;
+      mediaCountBadge.textContent = `媒體 ${mediaList.length} 筆`;
+    }
+
+    function getActiveMedia() {
+      return activeIndex >= 0 ? mediaList[activeIndex] : null;
+    }
+
+    function waitForImage(img) {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("圖片載入失敗"));
+      });
+    }
+
+    function waitForVideo(video) {
+      if (video.readyState >= 2 && video.videoWidth > 0) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        video.onloadeddata = () => resolve();
+        video.onerror = () => reject(new Error("影片載入失敗"));
+      });
+    }
+
+    async function loadActiveMedia() {
+      const active = getActiveMedia();
+      if (!active) return;
+
+      setStatus(`正在載入：${active.name}`);
+      currentKind = active.type;
+      crosshair.style.opacity = "0";
+
+      try {
+        if (active.type === "video") {
+          mainImg.removeAttribute("src");
+          mainImg.style.display = "none";
+          mainVideo.src = active.src;
+          mainVideo.style.display = "none";
+          await waitForVideo(mainVideo);
+          await mainVideo.play().catch(() => {});
+        } else {
+          mainVideo.pause();
+          mainVideo.removeAttribute("src");
+          mainVideo.style.display = "none";
+          mainImg.src = active.src;
+          mainImg.style.display = "none";
+          await waitForImage(mainImg);
+        }
+        resizeCanvases();
+        drawAllNow();
+        setStatus(`已載入：${active.name}。請在任一比較區移動滑鼠，同步比較 5K / 4K / 2K / 1K。`);
+      } catch (err) {
+        setStatus(`${active.name} 載入失敗，請確認檔案可讀取。`);
+        console.error(err);
+      }
+    }
+
+    function activeElement() {
+      return currentKind === "video" ? mainVideo : mainImg;
+    }
+
+    function sourceSize() {
+      const source = activeElement();
+      const width = source.videoWidth || source.naturalWidth || 0;
+      const height = source.videoHeight || source.naturalHeight || 0;
+      return { width, height };
+    }
+
+    function stageToSource(evt) {
+      const hovered = document.elementFromPoint(evt.clientX, evt.clientY);
+      const panel = evt.target.closest?.(".compare-panel") || hovered?.closest?.(".compare-panel");
+      if (!panel) return null;
+      const rect = panel.getBoundingClientRect();
+      const size = sourceSize();
+      if (!size.width || !size.height || !rect.width || !rect.height) return null;
+      const localX = evt.clientX - rect.left;
+      const localY = evt.clientY - rect.top;
+      const inside = localX >= 0 && localX <= rect.width && localY >= 0 && localY <= rect.height;
+
+      return {
+        inside,
+        pageX: evt.clientX,
+        pageY: evt.clientY,
+        normX: Math.min(1, Math.max(0, localX / rect.width)),
+        normY: Math.min(1, Math.max(0, localY / rect.height))
+      };
+    }
+
+    function resizeCanvases() {
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR));
+      SIMS.forEach((sim) => {
+        const canvas = document.getElementById(`canvas-${sim.id}`);
+        const wrap = canvas.parentElement;
+        const width = Math.max(1, Math.round(wrap.clientWidth * dpr));
+        const height = Math.max(1, Math.round(wrap.clientHeight * dpr));
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        drawDotMask(sim, wrap.clientWidth, wrap.clientHeight);
+      });
+    }
+
+    function drawDotMask(sim, width, height) {
+      const svg = document.getElementById(`mask-${sim.id}`);
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.setAttribute("preserveAspectRatio", "none");
+      svg.style.opacity = "0";
+      svg.innerHTML = "";
+    }
+
+    function getBuffer(key, width, height) {
+      const id = `${key}-${width}x${height}`;
+      let buffer = buffers.get(id);
+      if (!buffer) {
+        buffer = document.createElement("canvas");
+        buffers.set(id, buffer);
+      }
+      if (buffer.width !== width || buffer.height !== height) {
+        buffer.width = width;
+        buffer.height = height;
+      }
+      return buffer;
+    }
+
+    function computeCrop(dstW, dstH) {
+      const size = sourceSize();
+      if (!size.width || !size.height) return null;
+
+      let cropW = Math.min(size.width, dstW);
+      let cropH = Math.min(size.height, dstH);
+      const dstAspect = dstW / Math.max(1, dstH);
+      const cropAspect = cropW / Math.max(1, cropH);
+      if (cropAspect > dstAspect) {
+        cropW = Math.round(cropH * dstAspect);
+      } else if (cropAspect < dstAspect) {
+        cropH = Math.round(cropW / dstAspect);
+      }
+      cropW = Math.max(64, Math.min(size.width, cropW));
+      cropH = Math.max(64, Math.min(size.height, cropH));
+
+      const centerX = pointerNormX * size.width;
+      const centerY = pointerNormY * size.height;
+      const sx = Math.round(Math.max(0, Math.min(size.width - cropW, centerX - cropW / 2)));
+      const sy = Math.round(Math.max(0, Math.min(size.height - cropH, centerY - cropH / 2)));
+      return { sx, sy, sw: cropW, sh: cropH };
+    }
+
+    function drawPixelGap(ctx, width, height, pitch, opacity) {
+      if (!opacity || pitch <= 1.05) return;
+
+      const step = pitch;
+      const gap = Math.max(0.12, pitch * 0.14);
+      const start = Math.max(0.4, pitch - gap);
+
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.fillStyle = "#000";
+      for (let x = start; x < width; x += step) {
+        ctx.fillRect(x, 0, gap, height);
+      }
+      for (let y = start; y < height; y += step) {
+        ctx.fillRect(0, y, width, gap);
+      }
+      ctx.restore();
+    }
+
+    function drawSimulation(sim) {
+      const source = activeElement();
+      const canvas = document.getElementById(`canvas-${sim.id}`);
+      const ctx = canvas.getContext("2d");
+      if (!canvas.width || !canvas.height) return;
+
+      const crop = computeCrop(canvas.width, canvas.height);
+      if (!crop) return;
+
+      const downW = Math.max(8, Math.round(canvas.width * (sim.width / BASE_5K.width)));
+      const downH = Math.max(8, Math.round(canvas.height * (sim.height / BASE_5K.height)));
+      const buffer = getBuffer(sim.id, downW, downH);
+      const bctx = buffer.getContext("2d");
+
+      bctx.imageSmoothingEnabled = sim.id !== "5k";
+      bctx.imageSmoothingQuality = "high";
+      bctx.clearRect(0, 0, downW, downH);
+      bctx.drawImage(source, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, downW, downH);
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(buffer, 0, 0, downW, downH, 0, 0, canvas.width, canvas.height);
+      drawPixelGap(ctx, canvas.width, canvas.height, sim.pitch, sim.maskOpacity);
+    }
+
+    function drawAllNow() {
+      resizeCanvases();
+      SIMS.forEach(drawSimulation);
+    }
+
+    function requestDraw() {
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        const dx = targetNormX - pointerNormX;
+        const dy = targetNormY - pointerNormY;
+        if (Math.abs(dx) > 0.0008 || Math.abs(dy) > 0.0008) {
+          pointerNormX += dx * POINTER_EASING;
+          pointerNormY += dy * POINTER_EASING;
+        } else {
+          pointerNormX = targetNormX;
+          pointerNormY = targetNormY;
+        }
+        drawAllNow();
+        if (Math.abs(targetNormX - pointerNormX) > 0.0008 || Math.abs(targetNormY - pointerNormY) > 0.0008) {
+          requestDraw();
+        }
+      });
+    }
+
+    function handlePointerDown(evt) {
+      const hit = stageToSource(evt);
+      if (!hit || !hit.inside) {
+        crosshair.style.opacity = "0";
+        return;
+      }
+
+      isDragging = true;
+      dragStartNormX = hit.normX;
+      dragStartNormY = hit.normY;
+      dragStartTargetX = targetNormX;
+      dragStartTargetY = targetNormY;
+      mediaStage.classList.add("dragging");
+      mediaStage.setPointerCapture?.(evt.pointerId);
+      evt.preventDefault();
+    }
+
+    function handlePointerMove(evt) {
+      const hit = stageToSource(evt);
+      if (!hit || !hit.inside) {
+        if (!isDragging) crosshair.style.opacity = "0";
+        return;
+      }
+
+      const stageRect = mediaStage.getBoundingClientRect();
+      crosshair.style.left = `${hit.pageX - stageRect.left}px`;
+      crosshair.style.top = `${hit.pageY - stageRect.top}px`;
+      crosshair.style.opacity = "1";
+
+      if (!isDragging) {
+        setStatus("按住滑鼠拖曳即可平滑移動取樣位置。");
+        return;
+      }
+
+      targetNormX = Math.min(1, Math.max(0, dragStartTargetX + (hit.normX - dragStartNormX) * DRAG_SENSITIVITY));
+      targetNormY = Math.min(1, Math.max(0, dragStartTargetY + (hit.normY - dragStartNormY) * DRAG_SENSITIVITY));
+      setStatus(`平滑取樣中：X ${Math.round(targetNormX * 100)}% / Y ${Math.round(targetNormY * 100)}%`);
+      requestDraw();
+    }
+
+    function handlePointerUp(evt) {
+      if (!isDragging) return;
+      isDragging = false;
+      mediaStage.classList.remove("dragging");
+      mediaStage.releasePointerCapture?.(evt.pointerId);
+      setStatus("已停止拖曳；按住滑鼠再拖曳可繼續移動取樣位置。");
+    }
+
+    function startVideoLoop() {
+      if (videoLoopStarted) return;
+      videoLoopStarted = true;
+      const loop = () => {
+        if (currentKind === "video" && !mainVideo.paused && !mainVideo.ended) {
+          requestDraw();
+        }
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    }
+
+    function applyInitialMode() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("mode") === "immersive") {
+        document.body.classList.add("immersive");
+        modeBtn.textContent = "控制台模式";
+      }
+    }
+
+    function bindEvents() {
+      mediaStage.addEventListener("pointerdown", handlePointerDown);
+      mediaStage.addEventListener("pointermove", handlePointerMove);
+      mediaStage.addEventListener("pointerup", handlePointerUp);
+      mediaStage.addEventListener("pointercancel", handlePointerUp);
+      mediaStage.addEventListener("pointerleave", (evt) => {
+        if (isDragging) {
+          handlePointerUp(evt);
+        } else {
+          crosshair.style.opacity = "0";
+        }
+      });
+      window.addEventListener("resize", requestDraw);
+
+      modeBtn.addEventListener("click", () => {
+        document.body.classList.toggle("immersive");
+        modeBtn.textContent = document.body.classList.contains("immersive") ? "控制台模式" : "沉浸比較";
+        requestDraw();
+      });
+
+      fullscreenBtn.addEventListener("click", async () => {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        } else {
+          await document.documentElement.requestFullscreen();
+        }
+        requestDraw();
+      });
+
+      prevBtn.addEventListener("click", () => {
+        page -= 1;
+        renderThumbPage();
+      });
+
+      nextBtn.addEventListener("click", () => {
+        page += 1;
+        renderThumbPage();
+      });
+    }
+
+    async function init() {
+      applyInitialMode();
+      bindEvents();
+      renderFilters();
+      resizeCanvases();
+      mediaList = await fetchMediaList();
+      if (!mediaList.length) {
+        mediaList = [buildDemoMedia()];
+        setStatus("沒有偵測到展示素材，已使用內建測試影像。");
+      } else {
+        setStatus(`已找到 ${mediaList.length} 筆展示素材。`);
+      }
+      activeIndex = 0;
+      applyFilter();
+      await loadActiveMedia();
+      startVideoLoop();
+    }
+
+    init();
+  </script>
+</body>
+</html>

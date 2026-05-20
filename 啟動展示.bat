@@ -1,0 +1,51 @@
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+chcp 65001 >nul
+cd /d "%~dp0"
+
+set "BASE=%~dp0"
+set "URL="
+
+call :CheckRunning 8899
+if defined URL goto :OpenBrowser
+call :CheckRunning 8900
+if defined URL goto :OpenBrowser
+
+call :StartAndWait 8899
+if defined URL goto :OpenBrowser
+call :StartAndWait 8900
+if defined URL goto :OpenBrowser
+call :StartAndWait 8910
+if defined URL goto :OpenBrowser
+
+echo [ERROR] Failed to start demo server on 8899/8900/8910.
+echo Please run start-demo.ps1 manually and check error message.
+pause
+exit /b 1
+
+:OpenBrowser
+echo [OK] Demo server is ready at %URL%
+start "" "%URL%/?mode=immersive"
+echo.
+echo Browser opened. This launcher can be closed safely.
+pause
+exit /b 0
+
+:CheckRunning
+set "PORT=%~1"
+powershell -NoProfile -Command "try { Invoke-RestMethod -Uri 'http://localhost:%PORT%/api/media' -TimeoutSec 1 | Out-Null; exit 0 } catch { exit 1 }"
+if %errorlevel%==0 set "URL=http://localhost:%PORT%"
+exit /b 0
+
+:StartAndWait
+set "PORT=%~1"
+start "5K Demo Server %PORT%" powershell -NoExit -NoProfile -ExecutionPolicy Bypass -File "%BASE%start-demo.ps1" -Port %PORT%
+for /l %%i in (1,1,12) do (
+	powershell -NoProfile -Command "try { Invoke-RestMethod -Uri 'http://localhost:%PORT%/api/media' -TimeoutSec 1 | Out-Null; exit 0 } catch { exit 1 }"
+	if !errorlevel!==0 (
+		set "URL=http://localhost:%PORT%"
+		exit /b 0
+	)
+	timeout /t 1 /nobreak >nul
+)
+exit /b 0

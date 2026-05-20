@@ -1,0 +1,15 @@
+{
+  "name": "5k-resolution-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "5K / 4K / 2K / 1K display comparison demo",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
