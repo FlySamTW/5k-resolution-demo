@@ -288,9 +288,10 @@
       z-index: 6;
       display: grid;
       grid-template-columns: auto;
-      gap: 3px;
-      max-width: min(390px, calc(100% - 32px));
-      padding: 10px 14px 10px 16px;
+      gap: 4px;
+      min-width: 112px;
+      max-width: min(320px, calc(100% - 32px));
+      padding: 10px 14px 11px 16px;
       border: 1px solid rgba(255, 255, 255, 0.28);
       border-left: 5px solid #f0a64e;
       border-radius: 0;
@@ -303,6 +304,24 @@
       text-shadow: none;
       pointer-events: none;
       clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+    }
+
+    .sim-title {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      color: #ffffff;
+      font-size: clamp(20px, 1.75vw, 36px);
+      font-weight: 950;
+      line-height: 0.95;
+    }
+
+    .sim-title::after {
+      content: "";
+      width: 20px;
+      height: 3px;
+      background: #f0a64e;
+      transform: translateY(-2px);
     }
 
     .sim-label::after {
@@ -569,7 +588,7 @@
 
     <article class="compare-panel" data-panel-id="5k">
       <div class="sim-label">
-        <span>5K 原生區</span>
+        <span class="sim-title">5K</span>
         <span class="sim-note">5120 × 2880，基準點距</span>
       </div>
       <div class="canvas-wrap">
@@ -579,7 +598,7 @@
     </article>
     <article class="compare-panel" data-panel-id="4k">
       <div class="sim-label">
-        <span>4K 模擬區</span>
+        <span class="sim-title">4K</span>
         <span class="sim-note">3840 × 2160，點距約 1.33 倍</span>
       </div>
       <div class="canvas-wrap">
@@ -589,7 +608,7 @@
     </article>
     <article class="compare-panel" data-panel-id="2k">
       <div class="sim-label">
-        <span>2K 模擬區</span>
+        <span class="sim-title">2K</span>
         <span class="sim-note">2560 × 1440，點距約 2 倍</span>
       </div>
       <div class="canvas-wrap">
@@ -599,7 +618,7 @@
     </article>
     <article class="compare-panel" data-panel-id="1k">
       <div class="sim-label">
-        <span>1K / Full HD 模擬區</span>
+        <span class="sim-title">1K</span>
         <span class="sim-note">1920 × 1080，點距約 2.67 倍</span>
       </div>
       <div class="canvas-wrap">
