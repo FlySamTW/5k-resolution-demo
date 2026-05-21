@@ -126,6 +126,19 @@ try {
 
                 Write-JsonResponse $response @{ files = $files }
             }
+            elseif ($path -eq "/api/app-root") {
+                Write-JsonResponse $response @{ root = $root }
+            }
+            elseif ($path -eq "/api/capture-desktop" -and $request.HttpMethod -eq "POST") {
+                $captureScript = Join-Path $root "capture-desktop.ps1"
+                if (-not (Test-Path $captureScript)) {
+                    $response.StatusCode = 404
+                }
+                else {
+                    $name = (& $captureScript -ImagesDir $imagesDir | Select-Object -Last 1)
+                    Write-JsonResponse $response @{ name = $name; src = "images/$([uri]::EscapeDataString($name))" }
+                }
+            }
             else {
                 $relative = if ($path -eq "/") { "index.html" } else { $path.TrimStart('/') }
                 $relative = $relative -replace '/', [IO.Path]::DirectorySeparatorChar

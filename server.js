@@ -17,6 +17,7 @@ const localPackageFiles = [
   "啟動展示.bat",
   "start-demo.ps1",
   "watch-printscreen.ps1",
+  "capture-desktop.ps1",
   "LOCAL_APP_README.txt"
 ];
 
@@ -147,6 +148,38 @@ function sendLocalAppZip(res) {
   archive.finalize();
 }
 
+function captureDesktop(res) {
+  if (process.env.PORT || process.platform !== "win32") {
+    res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ error: "local Windows only" }));
+    return;
+  }
+
+  const scriptPath = path.join(root, "capture-desktop.ps1");
+  if (!fs.existsSync(scriptPath)) {
+    res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ error: "capture script not found" }));
+    return;
+  }
+
+  childProcess.execFile(
+    "powershell.exe",
+    ["-STA", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-ImagesDir", bundledImagesDir],
+    { cwd: root, windowsHide: true, timeout: 15000 },
+    (err, stdout) => {
+      if (err) {
+        console.error(err);
+        res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "capture failed" }));
+        return;
+      }
+
+      const name = stdout.trim().split(/\r?\n/).filter(Boolean).pop() || "";
+      sendJson(res, { name, src: `images/${encodeURIComponent(name)}` });
+    }
+  );
+}
+
 function safeName(name) {
   return path.basename(name).replace(/[^\w\u4e00-\u9fff ().\-[\]]+/g, "_");
 }
@@ -258,8 +291,18 @@ function handleRequest(req, res) {
       return;
     }
 
+    if (url.pathname === "/api/app-root") {
+      sendJson(res, { root });
+      return;
+    }
+
     if (url.pathname === "/download-local-app") {
       sendLocalAppZip(res);
+      return;
+    }
+
+    if (url.pathname === "/api/capture-desktop" && req.method === "POST") {
+      captureDesktop(res);
       return;
     }
 

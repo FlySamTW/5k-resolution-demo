@@ -35,7 +35,7 @@ exit /b 0
 
 :CheckRunning
 set "PORT=%~1"
-powershell -NoProfile -Command "try { Invoke-RestMethod -Uri 'http://localhost:%PORT%/api/media' -TimeoutSec 1 | Out-Null; exit 0 } catch { exit 1 }"
+powershell -NoProfile -Command "try { $expected=(Resolve-Path -LiteralPath $env:BASE).Path; $info=Invoke-RestMethod -Uri 'http://localhost:%PORT%/api/app-root' -TimeoutSec 1; if ($info.root -eq $expected) { exit 0 } else { exit 1 } } catch { exit 1 }"
 if %errorlevel%==0 set "URL=http://localhost:%PORT%"
 exit /b 0
 
@@ -43,7 +43,7 @@ exit /b 0
 set "PORT=%~1"
 start "5K Demo Server %PORT%" powershell -NoExit -NoProfile -ExecutionPolicy Bypass -File "%BASE%start-demo.ps1" -Port %PORT%
 for /l %%i in (1,1,12) do (
-	powershell -NoProfile -Command "try { Invoke-RestMethod -Uri 'http://localhost:%PORT%/api/media' -TimeoutSec 1 | Out-Null; exit 0 } catch { exit 1 }"
+	powershell -NoProfile -Command "try { $expected=(Resolve-Path -LiteralPath $env:BASE).Path; $info=Invoke-RestMethod -Uri 'http://localhost:%PORT%/api/app-root' -TimeoutSec 1; if ($info.root -eq $expected) { exit 0 } else { exit 1 } } catch { exit 1 }"
 	if !errorlevel!==0 (
 		set "URL=http://localhost:%PORT%"
 		exit /b 0
