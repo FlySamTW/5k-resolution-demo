@@ -710,8 +710,6 @@
     let dragStartTargetX = 0.5;
     let dragStartTargetY = 0.5;
     let activePointerId = null;
-    let dragDownClientX = 0;
-    let dragDownClientY = 0;
     let dragMoved = false;
 
     const buffers = new Map();
@@ -1235,8 +1233,6 @@
 
       isDragging = true;
       activePointerId = pointerIdFor(evt);
-      dragDownClientX = evt.clientX;
-      dragDownClientY = evt.clientY;
       dragMoved = false;
       dragStartNormX = startPoint.normX;
       dragStartNormY = startPoint.normY;
@@ -1271,12 +1267,10 @@
         finishDrag(evt);
         return;
       }
-      if (Math.hypot(evt.clientX - dragDownClientX, evt.clientY - dragDownClientY) > 6) {
-        dragMoved = true;
-      }
 
       const point = stagePoint(evt);
       if (!point) return;
+      dragMoved = true;
 
       crosshair.style.left = `${point.stageX}px`;
       crosshair.style.top = `${point.stageY}px`;
