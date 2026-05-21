@@ -1,4 +1,5 @@
 const http = require("node:http");
+const childProcess = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const Busboy = require("busboy");
@@ -18,6 +19,25 @@ const localPackageFiles = [
   "watch-printscreen.ps1",
   "LOCAL_APP_README.txt"
 ];
+
+function startPrintScreenWatcherForLocalWindows() {
+  if (process.env.PORT || process.platform !== "win32") return;
+
+  const watcherPath = path.join(root, "watch-printscreen.ps1");
+  if (!fs.existsSync(watcherPath)) return;
+
+  const child = childProcess.spawn(
+    "powershell.exe",
+    ["-STA", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", watcherPath],
+    {
+      cwd: root,
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true
+    }
+  );
+  child.unref();
+}
 
 function contentType(filePath) {
   switch (path.extname(filePath).toLowerCase()) {
@@ -299,3 +319,4 @@ function listenWithFallback(index = 0) {
 }
 
 listenWithFallback();
+startPrintScreenWatcherForLocalWindows();
