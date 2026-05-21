@@ -260,6 +260,8 @@
       cursor: grab;
       touch-action: none;
       user-select: none;
+      -webkit-user-select: none;
+      overscroll-behavior: contain;
     }
 
     .main.dragging {
@@ -652,7 +654,7 @@
       { id: "1k", label: "1K / Full HD", width: 1920, height: 1080, pitch: 5120 / 1920, gapOpacity: 0.36 }
     ];
     const SUPPORTED_IMAGE = [".png", ".jpg", ".jpeg", ".webp"];
-    const SUPPORTED_VIDEO = [".mp4", ".webm"];
+    const SUPPORTED_VIDEO = [".mp4", ".webm", ".mkv"];
     const STATIC_FALLBACK = ["20260520-10秒.mp4", "unnamed (3).png", "unnamed (4).png"];
     const ITEMS_PER_PAGE = 16;
     const MAX_CANVAS_DPR = 4;
@@ -700,6 +702,7 @@
     let dragStartNormY = 0.5;
     let dragStartTargetX = 0.5;
     let dragStartTargetY = 0.5;
+    let activePointerId = null;
 
     const buffers = new Map();
 
@@ -1161,7 +1164,40 @@
       });
     }
 
+    function clamp01(value) {
+      return Math.min(1, Math.max(0, value));
+    }
+
+    function pointerIdFor(evt) {
+      return evt.pointerId ?? "mouse";
+    }
+
+    function isPrimaryButton(evt) {
+      return evt.button === undefined || evt.button === 0;
+    }
+
+    function sameActivePointer(evt) {
+      return activePointerId === null || pointerIdFor(evt) === activePointerId;
+    }
+
+    function finishDrag(evt, message = "已停止拖曳；按住滑鼠再拖曳可繼續移動取樣位置。") {
+      if (!isDragging) return;
+      if (evt && !sameActivePointer(evt)) return;
+
+      if (evt?.pointerId !== undefined && mediaStage.hasPointerCapture?.(evt.pointerId)) {
+        try {
+          mediaStage.releasePointerCapture?.(evt.pointerId);
+        } catch (_err) {}
+      }
+
+      isDragging = false;
+      activePointerId = null;
+      mediaStage.classList.remove("dragging");
+      setStatus(message);
+    }
+
     function handlePointerDown(evt) {
+      if (!isPrimaryButton(evt)) return;
       const hit = stageToSource(evt);
       if (!hit || !hit.inside) {
         crosshair.style.opacity = "0";
@@ -1171,27 +1207,38 @@
       if (!startPoint) return;
 
       isDragging = true;
+      activePointerId = pointerIdFor(evt);
       dragStartNormX = startPoint.normX;
       dragStartNormY = startPoint.normY;
       dragStartTargetX = targetNormX;
       dragStartTargetY = targetNormY;
       mediaStage.classList.add("dragging");
-      mediaStage.setPointerCapture?.(evt.pointerId);
+      if (evt.pointerId !== undefined) {
+        try {
+          mediaStage.setPointerCapture?.(evt.pointerId);
+        } catch (_err) {}
+      }
       evt.preventDefault();
     }
 
-    function handlePointerMove(evt) {
-      if (!isDragging) {
-        const hit = stageToSource(evt);
-        if (!hit || !hit.inside) {
-          crosshair.style.opacity = "0";
-          return;
-        }
-        const stageRect = mediaStage.getBoundingClientRect();
-        crosshair.style.left = `${hit.pageX - stageRect.left}px`;
-        crosshair.style.top = `${hit.pageY - stageRect.top}px`;
-        crosshair.style.opacity = "1";
-        setStatus("按住滑鼠拖曳即可平滑移動取樣位置。");
+    function handleHoverMove(evt) {
+      if (isDragging) return;
+      const hit = stageToSource(evt);
+      if (!hit || !hit.inside) {
+        crosshair.style.opacity = "0";
+        return;
+      }
+      const stageRect = mediaStage.getBoundingClientRect();
+      crosshair.style.left = `${hit.pageX - stageRect.left}px`;
+      crosshair.style.top = `${hit.pageY - stageRect.top}px`;
+      crosshair.style.opacity = "1";
+      setStatus("按住滑鼠拖曳即可平滑移動取樣位置。");
+    }
+
+    function handleDragMove(evt) {
+      if (!isDragging || !sameActivePointer(evt)) return;
+      if (evt.buttons !== undefined && evt.buttons === 0) {
+        finishDrag(evt);
         return;
       }
 
@@ -1202,10 +1249,15 @@
       crosshair.style.top = `${point.stageY}px`;
       crosshair.style.opacity = "1";
 
-      targetNormX = Math.min(1, Math.max(0, dragStartTargetX - (point.normX - dragStartNormX) * DRAG_SENSITIVITY));
-      targetNormY = Math.min(1, Math.max(0, dragStartTargetY - (point.normY - dragStartNormY) * DRAG_SENSITIVITY));
+      targetNormX = clamp01(dragStartTargetX - (point.normX - dragStartNormX) * DRAG_SENSITIVITY);
+      targetNormY = clamp01(dragStartTargetY - (point.normY - dragStartNormY) * DRAG_SENSITIVITY);
+      dragStartNormX = point.normX;
+      dragStartNormY = point.normY;
+      dragStartTargetX = targetNormX;
+      dragStartTargetY = targetNormY;
       setStatus(`平滑取樣中：X ${Math.round(targetNormX * 100)}% / Y ${Math.round(targetNormY * 100)}%`);
       requestDraw();
+      evt.preventDefault();
     }
 
     function setImmersiveMode(enabled) {
@@ -1246,14 +1298,6 @@
       requestDraw();
     }
 
-    function handlePointerUp(evt) {
-      if (!isDragging) return;
-      isDragging = false;
-      mediaStage.classList.remove("dragging");
-      mediaStage.releasePointerCapture?.(evt.pointerId);
-      setStatus("已停止拖曳；按住滑鼠再拖曳可繼續移動取樣位置。");
-    }
-
     function startVideoLoop() {
       if (videoLoopStarted) return;
       videoLoopStarted = true;
@@ -1274,11 +1318,27 @@
     }
 
     function bindEvents() {
-      mediaStage.addEventListener("pointerdown", handlePointerDown);
-      mediaStage.addEventListener("pointermove", handlePointerMove);
-      mediaStage.addEventListener("pointerup", handlePointerUp);
-      mediaStage.addEventListener("pointercancel", handlePointerUp);
-      mediaStage.addEventListener("lostpointercapture", handlePointerUp);
+      const pointerEventsSupported = Boolean(window.PointerEvent);
+      const downEvent = pointerEventsSupported ? "pointerdown" : "mousedown";
+      const moveEvent = pointerEventsSupported ? "pointermove" : "mousemove";
+      const upEvent = pointerEventsSupported ? "pointerup" : "mouseup";
+
+      mediaStage.addEventListener(downEvent, handlePointerDown);
+      mediaStage.addEventListener(moveEvent, handleHoverMove);
+      mediaStage.addEventListener(upEvent, finishDrag);
+      window.addEventListener(moveEvent, handleDragMove, { capture: true });
+      window.addEventListener(upEvent, finishDrag, { capture: true });
+      if (pointerEventsSupported) {
+        mediaStage.addEventListener("pointercancel", (evt) => finishDrag(evt, "拖曳已被瀏覽器中斷；按住滑鼠再拖曳即可繼續。"));
+        mediaStage.addEventListener("lostpointercapture", (evt) => finishDrag(evt, "拖曳已中斷；按住滑鼠再拖曳即可繼續。"));
+        window.addEventListener("pointercancel", (evt) => finishDrag(evt, "拖曳已被瀏覽器中斷；按住滑鼠再拖曳即可繼續。"), { capture: true });
+      } else {
+        window.addEventListener("mouseleave", () => finishDrag(null, "拖曳已中斷；按住滑鼠再拖曳即可繼續。"), { capture: true });
+      }
+      window.addEventListener("blur", () => {
+        finishDrag(null, "拖曳已中斷；按住滑鼠再拖曳即可繼續。");
+        crosshair.style.opacity = "0";
+      });
       mediaStage.addEventListener("pointerleave", (evt) => {
         if (isDragging) {
           return;

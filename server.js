@@ -9,7 +9,7 @@ const bundledImagesDir = path.join(root, "images");
 const mediaDir = path.resolve(process.env.MEDIA_DIR || bundledImagesDir);
 const requestedPort = Number(process.env.PORT || 18765);
 const fallbackPorts = process.env.PORT ? [requestedPort] : [18765, 18766, 18767, 18768, 18769];
-const allowedMediaExt = new Set([".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm"]);
+const allowedMediaExt = new Set([".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mkv"]);
 const adminPassword = process.env.ADMIN_PASSWORD || "";
 const localPackageFiles = [
   "index.html",
@@ -40,6 +40,8 @@ function contentType(filePath) {
       return "video/mp4";
     case ".webm":
       return "video/webm";
+    case ".mkv":
+      return "video/x-matroska";
     default:
       return "application/octet-stream";
   }
@@ -185,10 +187,10 @@ function adminPage() {
 </style>
 <main>
   <h1>展示素材上傳</h1>
-  <p>可上傳 PNG、JPG、WEBP、MP4、WEBM。若部署在 Zeabur，請把 <code>MEDIA_DIR</code> 指到已掛載 Volume 的資料夾，才會在重啟後保留。</p>
+  <p>可上傳 PNG、JPG、WEBP、MP4、WEBM、MKV。若部署在 Zeabur，請把 <code>MEDIA_DIR</code> 指到已掛載 Volume 的資料夾，才會在重啟後保留。</p>
   ${enabled ? `<form method="post" action="/api/upload?key=" enctype="multipart/form-data" onsubmit="this.action='/api/upload?key='+encodeURIComponent(document.querySelector('#key').value)">
     <input id="key" type="password" placeholder="管理密碼" required>
-    <input type="file" name="media" accept=".png,.jpg,.jpeg,.webp,.mp4,.webm" multiple required>
+    <input type="file" name="media" accept=".png,.jpg,.jpeg,.webp,.mp4,.webm,.mkv" multiple required>
     <button type="submit">上傳素材</button>
     <div class="note">上傳完成後回到首頁重新整理即可看到素材。</div>
   </form>` : `<p class="note">尚未設定 <code>ADMIN_PASSWORD</code>，上傳功能目前關閉。</p>`}

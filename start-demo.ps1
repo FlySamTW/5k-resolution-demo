@@ -10,7 +10,7 @@ if (-not (Test-Path $imagesDir)) {
     New-Item -Path $imagesDir -ItemType Directory | Out-Null
 }
 
-$allowedMediaExt = @(".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm")
+$allowedMediaExt = @(".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mkv")
 
 function Get-ContentType([string]$path) {
     switch ([IO.Path]::GetExtension($path).ToLowerInvariant()) {
@@ -24,6 +24,7 @@ function Get-ContentType([string]$path) {
         ".webp" { "image/webp" }
         ".mp4" { "video/mp4" }
         ".webm" { "video/webm" }
+        ".mkv" { "video/x-matroska" }
         default { "application/octet-stream" }
     }
 }

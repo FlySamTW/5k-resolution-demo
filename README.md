@@ -30,6 +30,9 @@ http://localhost:18765/?mode=immersive
 - `.webp`
 - `.mp4`
 - `.webm`
+- `.mkv`
+
+注意：MKV 會列入素材清單，但實際能不能播放仍取決於瀏覽器與影片內部編碼；展示現場最穩定的格式仍建議使用 MP4 / H.264。
 
 部署在 Zeabur 時，小型素材可以一起放進 Git repo 的 `images/`，推送後讓 Zeabur 重新部署。
 
