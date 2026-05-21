@@ -253,16 +253,16 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       grid-template-rows: repeat(2, minmax(0, 1fr));
-      gap: 5px;
+      gap: 10px;
       position: relative;
       min-height: 0;
-      background: linear-gradient(135deg, #d09854, #4c3825 46%, #d09854);
+      background: #000;
       cursor: grab;
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
       overscroll-behavior: contain;
-      box-shadow: inset 0 0 0 1px rgba(255, 216, 163, 0.18);
+      box-shadow: inset 0 0 0 4px #000;
     }
 
     .main.dragging {
@@ -277,40 +277,49 @@
       overflow: hidden;
       background: #000;
       box-shadow:
-        inset 0 0 0 1px rgba(255, 232, 198, 0.12),
-        inset 0 0 0 2px rgba(0, 0, 0, 0.65);
+        inset 0 0 0 3px #000,
+        inset 0 0 0 4px rgba(255, 255, 255, 0.08);
     }
 
     .sim-label {
       position: absolute;
-      top: 14px;
-      left: 14px;
+      top: 16px;
+      left: 16px;
       z-index: 6;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 2px;
-      max-width: min(380px, calc(100% - 28px));
-      padding: 9px 12px 10px;
-      border: 1px solid rgba(255, 211, 154, 0.72);
-      border-radius: 8px;
-      background: linear-gradient(180deg, rgba(20, 15, 10, 0.96), rgba(4, 4, 4, 0.9));
-      color: #fff6e9;
+      display: grid;
+      grid-template-columns: auto;
+      gap: 3px;
+      max-width: min(390px, calc(100% - 32px));
+      padding: 10px 14px 10px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-left: 5px solid #f0a64e;
+      border-radius: 0;
+      background: #050505;
+      color: #ffffff;
       font-weight: 900;
       font-size: clamp(14px, 1vw, 22px);
       line-height: 1.2;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+      letter-spacing: 0;
+      text-shadow: none;
       pointer-events: none;
-      box-shadow:
-        0 8px 22px rgba(0, 0, 0, 0.5),
-        inset 4px 0 0 #f0a64e;
-      backdrop-filter: blur(2px);
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+    }
+
+    .sim-label::after {
+      content: "";
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      width: 7px;
+      height: 7px;
+      border-top: 2px solid #f0a64e;
+      border-right: 2px solid #f0a64e;
     }
 
     .sim-note {
-      color: #ffe0b6;
+      color: #f0a64e;
       font-size: clamp(11px, 0.72vw, 14px);
-      font-weight: 700;
+      font-weight: 800;
       white-space: nowrap;
     }
 
@@ -701,6 +710,9 @@
     let dragStartTargetX = 0.5;
     let dragStartTargetY = 0.5;
     let activePointerId = null;
+    let dragDownClientX = 0;
+    let dragDownClientY = 0;
+    let dragMoved = false;
 
     const buffers = new Map();
 
@@ -1194,6 +1206,23 @@
       setStatus(message);
     }
 
+    async function toggleVideoPlayback() {
+      if (currentKind !== "video") return;
+
+      try {
+        if (mainVideo.paused || mainVideo.ended) {
+          await mainVideo.play();
+          setStatus("影片播放中；拖曳畫面可移動取樣位置。");
+        } else {
+          mainVideo.pause();
+          setStatus("影片已暫停；再次點按畫面可繼續播放。");
+        }
+        requestDraw();
+      } catch (_err) {
+        setStatus("瀏覽器阻擋自動播放，請再點按一次影片畫面。");
+      }
+    }
+
     function handlePointerDown(evt) {
       if (!isPrimaryButton(evt)) return;
       const hit = stageToSource(evt);
@@ -1206,6 +1235,9 @@
 
       isDragging = true;
       activePointerId = pointerIdFor(evt);
+      dragDownClientX = evt.clientX;
+      dragDownClientY = evt.clientY;
+      dragMoved = false;
       dragStartNormX = startPoint.normX;
       dragStartNormY = startPoint.normY;
       dragStartTargetX = targetNormX;
@@ -1239,6 +1271,9 @@
         finishDrag(evt);
         return;
       }
+      if (Math.hypot(evt.clientX - dragDownClientX, evt.clientY - dragDownClientY) > 6) {
+        dragMoved = true;
+      }
 
       const point = stagePoint(evt);
       if (!point) return;
@@ -1256,6 +1291,14 @@
       setStatus(`平滑取樣中：X ${Math.round(targetNormX * 100)}% / Y ${Math.round(targetNormY * 100)}%`);
       requestDraw();
       evt.preventDefault();
+    }
+
+    function handlePointerUp(evt) {
+      const wasClick = isDragging && !dragMoved && sameActivePointer(evt);
+      finishDrag(evt);
+      if (wasClick) {
+        toggleVideoPlayback();
+      }
     }
 
     function setImmersiveMode(enabled) {
@@ -1325,7 +1368,7 @@
       mediaStage.addEventListener(moveEvent, handleHoverMove);
       mediaStage.addEventListener(upEvent, finishDrag);
       window.addEventListener(moveEvent, handleDragMove, { capture: true });
-      window.addEventListener(upEvent, finishDrag, { capture: true });
+      window.addEventListener(upEvent, handlePointerUp, { capture: true });
       if (pointerEventsSupported) {
         mediaStage.addEventListener("pointercancel", (evt) => finishDrag(evt, "拖曳已被瀏覽器中斷；按住滑鼠再拖曳即可繼續。"));
         mediaStage.addEventListener("lostpointercapture", (evt) => finishDrag(evt, "拖曳已中斷；按住滑鼠再拖曳即可繼續。"));
