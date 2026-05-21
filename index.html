@@ -288,10 +288,10 @@
       z-index: 6;
       display: grid;
       grid-template-columns: auto;
-      gap: 4px;
-      min-width: 112px;
+      gap: 5px;
+      min-width: 128px;
       max-width: min(320px, calc(100% - 32px));
-      padding: 10px 14px 11px 16px;
+      padding: 10px 15px 12px 16px;
       border: 1px solid rgba(255, 255, 255, 0.28);
       border-left: 5px solid #f0a64e;
       border-radius: 0;
@@ -307,12 +307,34 @@
     }
 
     .sim-title {
-      display: inline-flex;
-      align-items: baseline;
+      display: grid;
+      gap: 2px;
       color: #ffffff;
-      font-size: clamp(20px, 1.75vw, 36px);
+      line-height: 1;
+    }
+
+    .sim-kicker {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: clamp(9px, 0.6vw, 12px);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .sim-value {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #ffffff;
+      font-size: clamp(24px, 2vw, 42px);
       font-weight: 950;
-      line-height: 0.95;
+    }
+
+    .sim-value::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      background: #f0a64e;
+      transform: rotate(45deg);
     }
 
     .sim-label::after {
@@ -579,7 +601,10 @@
 
     <article class="compare-panel" data-panel-id="5k">
       <div class="sim-label">
-        <span class="sim-title">5K</span>
+        <span class="sim-title">
+          <span class="sim-kicker">RESOLUTION</span>
+          <span class="sim-value">5K</span>
+        </span>
         <span class="sim-note">5120 × 2880，基準點距</span>
       </div>
       <div class="canvas-wrap">
@@ -589,7 +614,10 @@
     </article>
     <article class="compare-panel" data-panel-id="4k">
       <div class="sim-label">
-        <span class="sim-title">4K</span>
+        <span class="sim-title">
+          <span class="sim-kicker">RESOLUTION</span>
+          <span class="sim-value">4K</span>
+        </span>
         <span class="sim-note">3840 × 2160，點距約 1.33 倍</span>
       </div>
       <div class="canvas-wrap">
@@ -599,7 +627,10 @@
     </article>
     <article class="compare-panel" data-panel-id="2k">
       <div class="sim-label">
-        <span class="sim-title">2K</span>
+        <span class="sim-title">
+          <span class="sim-kicker">RESOLUTION</span>
+          <span class="sim-value">2K</span>
+        </span>
         <span class="sim-note">2560 × 1440，點距約 2 倍</span>
       </div>
       <div class="canvas-wrap">
@@ -609,7 +640,10 @@
     </article>
     <article class="compare-panel" data-panel-id="1k">
       <div class="sim-label">
-        <span class="sim-title">1K</span>
+        <span class="sim-title">
+          <span class="sim-kicker">RESOLUTION</span>
+          <span class="sim-value">1K</span>
+        </span>
         <span class="sim-note">1920 × 1080，點距約 2.67 倍</span>
       </div>
       <div class="canvas-wrap">
