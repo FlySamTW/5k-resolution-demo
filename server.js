@@ -188,7 +188,11 @@ function filesInDir(dir, prefix) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
     .filter((name) => allowedMediaExt.has(path.extname(name).toLowerCase()))
-    .map((name) => ({ name, src: `${prefix}/${encodeURIComponent(name)}` }));
+    .map((name) => {
+      const filePath = path.join(dir, name);
+      const stat = fs.statSync(filePath);
+      return { name, src: `${prefix}/${encodeURIComponent(name)}`, modifiedAt: stat.mtimeMs };
+    });
 }
 
 function mediaFiles() {

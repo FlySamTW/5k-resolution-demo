@@ -122,7 +122,13 @@ try {
                 $files = @(Get-ChildItem -Path $imagesDir -File |
                     Where-Object { $allowedMediaExt -contains $_.Extension.ToLowerInvariant() } |
                     Sort-Object Name |
-                    Select-Object -ExpandProperty Name)
+                    ForEach-Object {
+                        @{
+                            name = $_.Name
+                            src = "images/$([uri]::EscapeDataString($_.Name))"
+                            modifiedAt = ([DateTimeOffset]$_.LastWriteTimeUtc).ToUnixTimeMilliseconds()
+                        }
+                    })
 
                 Write-JsonResponse $response @{ files = $files }
             }

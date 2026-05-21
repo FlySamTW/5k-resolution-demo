@@ -206,6 +206,54 @@
       margin-top: 16px;
     }
 
+    .mobile-start {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      background: rgba(0, 0, 0, 0.78);
+    }
+
+    body.mobile .mobile-start.open {
+      display: flex;
+    }
+
+    .mobile-start-card {
+      width: min(480px, 100%);
+      padding: 18px;
+      border: 1px solid rgba(255, 216, 163, 0.34);
+      border-radius: 10px;
+      background: #181817;
+      color: #f7f2ea;
+      text-align: center;
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.48);
+    }
+
+    .mobile-start-card h2 {
+      margin: 0 0 10px;
+      color: #ffd7a1;
+      font-size: 22px;
+    }
+
+    .mobile-start-card p {
+      margin: 0 0 14px;
+      color: #dccfbe;
+      line-height: 1.7;
+    }
+
+    .rotate-note {
+      display: none;
+      color: #ffd7a1;
+      font-weight: 800;
+    }
+
+    body.mobile.portrait .rotate-note {
+      display: block;
+    }
+
     .main {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -589,6 +637,15 @@
     </div>
   </div>
 
+  <div class="mobile-start" id="mobile-start" role="dialog" aria-modal="true" aria-labelledby="mobile-start-title">
+    <div class="mobile-start-card">
+      <h2 id="mobile-start-title">手機展示模式</h2>
+      <p class="rotate-note">請先把手機轉成橫式，畫面會比較接近展示比例。</p>
+      <p>將自動使用沉浸式畫面，並播放雲端資料夾中最新放入的照片。按下開始後會嘗試進入全螢幕與鎖定橫向。</p>
+      <button class="top-btn" id="mobile-start-btn" type="button">開始展示</button>
+    </div>
+  </div>
+
   <footer class="thumb-panel">
     <div class="pager">
       <button class="pager-btn" id="prev-page" type="button">上一頁</button>
@@ -635,6 +692,8 @@
     const downloadModal = document.getElementById("download-modal");
     const downloadCancel = document.getElementById("download-cancel");
     const downloadConfirm = document.getElementById("download-confirm");
+    const mobileStart = document.getElementById("mobile-start");
+    const mobileStartBtn = document.getElementById("mobile-start-btn");
 
     let mediaList = [];
     let filtered = [];
@@ -649,6 +708,8 @@
     let videoLoopStarted = false;
     let isDragging = false;
     let mediaRefreshTimer = 0;
+    let isMobileExperience = false;
+    let mobileStartAccepted = false;
     let dragStartNormX = 0.5;
     let dragStartNormY = 0.5;
     let dragStartTargetX = 0.5;
@@ -665,6 +726,19 @@
       const isLocal = host === "localhost" || host === "127.0.0.1" || host === "" || window.location.protocol === "file:";
       document.body.classList.toggle("cloud", !isLocal);
       document.body.classList.toggle("local", isLocal && window.location.protocol !== "file:");
+    }
+
+    function detectMobileExperience() {
+      const ua = navigator.userAgent || "";
+      const coarse = window.matchMedia?.("(pointer: coarse)")?.matches;
+      const compact = Math.min(window.innerWidth, window.innerHeight) <= 1024;
+      return /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua) || (coarse && compact);
+    }
+
+    function updateOrientationClass() {
+      const portrait = window.innerHeight > window.innerWidth;
+      document.body.classList.toggle("portrait", portrait);
+      document.body.classList.toggle("landscape", !portrait);
     }
 
     function fileType(name) {
@@ -698,11 +772,34 @@
       return files
         .map((file) => typeof file === "string" ? { name: file, src: srcForName(file) } : file)
         .filter((file) => file && file.name && fileType(file.name) !== "unknown")
-        .map((file) => ({ name: file.name, type: fileType(file.name), src: file.src || srcForName(file.name) }));
+        .map((file) => ({
+          name: file.name,
+          type: fileType(file.name),
+          src: file.src || srcForName(file.name),
+          modifiedAt: Number(file.modifiedAt || file.mtimeMs || 0)
+        }));
     }
 
     function mediaKey(item) {
       return `${item.type}:${item.src || item.name}`;
+    }
+
+    function latestImageIndex() {
+      let bestIndex = -1;
+      mediaList.forEach((item, index) => {
+        if (item.type !== "image") return;
+        if (bestIndex < 0) {
+          bestIndex = index;
+          return;
+        }
+        const best = mediaList[bestIndex];
+        if ((item.modifiedAt || 0) > (best.modifiedAt || 0)) {
+          bestIndex = index;
+        } else if ((item.modifiedAt || 0) === (best.modifiedAt || 0) && item.name.localeCompare(best.name, "zh-Hant") > 0) {
+          bestIndex = index;
+        }
+      });
+      return bestIndex;
     }
 
     function buildDemoMedia() {
@@ -1113,6 +1210,34 @@
       downloadModal.classList.toggle("open", open);
     }
 
+    function setMobileStart(open) {
+      mobileStart.classList.toggle("open", open);
+    }
+
+    async function requestMobilePresentation() {
+      mobileStartAccepted = true;
+      setMobileStart(false);
+      setImmersiveMode(true);
+
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (_err) {}
+
+      try {
+        if (screen.orientation?.lock) {
+          await screen.orientation.lock("landscape");
+        }
+      } catch (_err) {
+        if (document.body.classList.contains("portrait")) {
+          setStatus("請將手機轉成橫式；瀏覽器不允許自動鎖定方向。");
+        }
+      }
+
+      requestDraw();
+    }
+
     async function captureDesktop() {
       if (!document.body.classList.contains("local")) return;
 
@@ -1174,6 +1299,13 @@
         }
       });
       window.addEventListener("resize", requestDraw);
+      window.addEventListener("resize", updateOrientationClass);
+      window.addEventListener("orientationchange", () => {
+        window.setTimeout(() => {
+          updateOrientationClass();
+          requestDraw();
+        }, 180);
+      });
 
       modeBtn.addEventListener("click", () => {
         setImmersiveMode(!document.body.classList.contains("immersive"));
@@ -1213,6 +1345,10 @@
         }
       });
 
+      mobileStartBtn.addEventListener("click", () => {
+        requestMobilePresentation();
+      });
+
       fullscreenBtn.addEventListener("click", async () => {
         if (document.fullscreenElement) {
           await document.exitFullscreen();
@@ -1235,6 +1371,9 @@
 
     async function init() {
       markCloudMode();
+      isMobileExperience = detectMobileExperience();
+      document.body.classList.toggle("mobile", isMobileExperience);
+      updateOrientationClass();
       applyInitialMode();
       bindEvents();
       resizeCanvases();
@@ -1245,10 +1384,15 @@
       } else {
         setStatus(`已找到 ${mediaList.length} 筆展示素材。`);
       }
-      activeIndex = Math.max(0, mediaList.findIndex((item) => item.type === "image"));
+      activeIndex = isMobileExperience ? latestImageIndex() : mediaList.findIndex((item) => item.type === "image");
+      activeIndex = Math.max(0, activeIndex);
       applyFilter();
       await loadActiveMedia();
       startVideoLoop();
+      if (isMobileExperience) {
+        setImmersiveMode(true);
+        setMobileStart(true);
+      }
       mediaRefreshTimer = window.setInterval(() => {
         refreshMediaList({ autoSelectNew: true }).catch(() => {});
       }, MEDIA_REFRESH_MS);
