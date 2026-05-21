@@ -201,6 +201,41 @@
       line-height: 1.75;
     }
 
+    .info-card {
+      width: min(1280px, calc(100vw - 72px));
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+      padding: 38px 46px 36px;
+    }
+
+    .info-card h2 {
+      margin-bottom: 22px;
+      font-size: clamp(42px, 3vw, 58px);
+    }
+
+    .info-card p,
+    .info-card .plain-list {
+      font-size: clamp(32px, 2vw, 40px);
+      line-height: 1.58;
+      letter-spacing: 0;
+    }
+
+    .info-card .plain-list {
+      display: grid;
+      gap: 12px;
+      margin: 18px 0 22px;
+      padding-left: 36px;
+    }
+
+    .info-card .download-actions {
+      margin-top: 20px;
+    }
+
+    .info-card .top-btn {
+      font-size: 30px;
+      padding: 14px 30px;
+    }
+
     .download-actions {
       display: flex;
       justify-content: flex-end;
@@ -772,7 +807,7 @@
   </div>
 
   <div class="download-modal" id="info-modal" role="dialog" aria-modal="true" aria-labelledby="info-title">
-    <div class="download-card">
+    <div class="download-card info-card">
       <h2 id="info-title">這個展示怎麼看</h2>
       <p>四個畫面的大小是一樣的，也會一起看同一個位置。差別只在於：如果同樣是這個尺寸的螢幕，解析度少一點時，細節和點距會變成什麼感覺。</p>
       <ul class="plain-list">
