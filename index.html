@@ -194,6 +194,13 @@
       line-height: 1.7;
     }
 
+    .plain-list {
+      margin: 10px 0 16px;
+      padding-left: 22px;
+      color: #f2e6d8;
+      line-height: 1.75;
+    }
+
     .download-actions {
       display: flex;
       justify-content: flex-end;
@@ -304,6 +311,16 @@
       text-shadow: none;
       pointer-events: none;
       clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+    }
+
+    .base-toggle {
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    .base-toggle:hover {
+      border-color: rgba(240, 166, 78, 0.95);
+      background: #0d0a07;
     }
 
     .sim-title {
@@ -649,10 +666,11 @@
 <body>
   <header class="topbar">
     <div class="top-left">
-      <div class="title">5K / 4K / 2K / 1K 同面積解析度比較</div>
+      <div class="title" id="page-title">5K / 4K / 2K / 1K 同面積解析度比較</div>
       <div class="top-actions">
         <button class="top-btn" id="mode-btn" type="button">沉浸比較</button>
         <button class="top-btn" id="fullscreen-btn" type="button">全螢幕</button>
+        <button class="top-btn" id="info-btn" type="button">說明</button>
       </div>
     </div>
     <div class="badge" id="media-count-badge">媒體 0 筆</div>
@@ -671,12 +689,12 @@
     <video id="main-video" class="main-media" muted loop playsinline preload="auto"></video>
 
     <article class="compare-panel" data-panel-id="5k">
-      <div class="sim-label">
+      <div class="sim-label base-toggle" id="base-toggle" title="點擊切換 5K / 6K 基準">
         <span class="sim-title">
           <span class="sim-kicker">RESOLUTION</span>
-          <span class="sim-value">5K</span>
+          <span class="sim-value" id="base-value">5K</span>
         </span>
-        <span class="sim-note">5120 × 2880，基準點距</span>
+        <span class="sim-note" id="base-note">5120 × 2880，基準點距</span>
       </div>
       <div class="canvas-wrap">
         <canvas class="sim-canvas" id="canvas-5k"></canvas>
@@ -694,7 +712,7 @@
           <span class="sim-kicker">RESOLUTION</span>
           <span class="sim-value">4K</span>
         </span>
-        <span class="sim-note">3840 × 2160，點距約 1.33 倍</span>
+        <span class="sim-note" data-note-for="4k">3840 × 2160，點距約 1.33 倍</span>
       </div>
       <div class="canvas-wrap">
         <canvas class="sim-canvas" id="canvas-4k"></canvas>
@@ -707,7 +725,7 @@
           <span class="sim-kicker">RESOLUTION</span>
           <span class="sim-value">2K</span>
         </span>
-        <span class="sim-note">2560 × 1440，點距約 2 倍</span>
+        <span class="sim-note" data-note-for="2k">2560 × 1440，點距約 2 倍</span>
       </div>
       <div class="canvas-wrap">
         <canvas class="sim-canvas" id="canvas-2k"></canvas>
@@ -720,7 +738,7 @@
           <span class="sim-kicker">RESOLUTION</span>
           <span class="sim-value">1K</span>
         </span>
-        <span class="sim-note">1920 × 1080，點距約 2.67 倍</span>
+        <span class="sim-note" data-note-for="1k">1920 × 1080，點距約 2.67 倍</span>
       </div>
       <div class="canvas-wrap">
         <canvas class="sim-canvas" id="canvas-1k"></canvas>
@@ -742,13 +760,30 @@
       <p>這個下載包不含雲端圖片或影片。下載後請解壓縮，再把自己的素材放進 <strong>images</strong> 資料夾。</p>
       <ol>
         <li>解壓縮到 Windows 電腦任意位置。</li>
-        <li>把 PNG、JPG、WEBP、MP4 或 WEBM 放進 images。</li>
+        <li>把 PNG、JPG、WEBP、MP4、WEBM 或 MKV 放進 images。</li>
         <li>雙擊「啟動展示.bat」開始展示。</li>
       </ol>
       <p>若要更換素材，直接把檔案放進解壓縮後同一層的 images 資料夾，再重新整理網頁即可。</p>
       <div class="download-actions">
         <button class="top-btn" id="download-cancel" type="button">取消</button>
         <a class="top-btn" id="download-confirm" href="/download-local-app">下載</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="download-modal" id="info-modal" role="dialog" aria-modal="true" aria-labelledby="info-title">
+    <div class="download-card">
+      <h2 id="info-title">這個展示怎麼看</h2>
+      <p>四個畫面的大小是一樣的，也會一起看同一個位置。差別只在於：如果同樣是這個尺寸的螢幕，解析度少一點時，細節和點距會變成什麼感覺。</p>
+      <ul class="plain-list">
+        <li>基準那一格代表目前要展示的原生解析度，可點 5K / 6K 互相切換。</li>
+        <li>4K、2K、1K 會先照同尺寸螢幕的解析度重新取樣，再加上點距感。</li>
+        <li>我們的目標是盡量還原肉眼感受到的差異，不是把這台螢幕真的變成另一台螢幕。</li>
+        <li>如果在 5K 螢幕看 6K 模式，6K 是比例模擬；在真的 6K 螢幕上用 6K 模式，才會更接近實機展示。</li>
+      </ul>
+      <p>簡單說：它是在同面積下，幫客人看懂不同解析度會少掉多少細節、點距會變多明顯。</p>
+      <div class="download-actions">
+        <button class="top-btn" id="info-close" type="button">了解</button>
       </div>
     </div>
   </div>
@@ -769,16 +804,20 @@
       <button class="pager-btn" id="next-page" type="button">下一頁</button>
     </div>
     <div class="thumb-grid" id="thumb-grid"></div>
-    <div class="empty" id="empty-msg" hidden>尚未找到可播放媒體，請將 PNG、JPG、WEBP 或 MP4 放入 images 後重新整理。</div>
+    <div class="empty" id="empty-msg" hidden>尚未找到可播放媒體，請將 PNG、JPG、WEBP、MP4、WEBM 或 MKV 放入 images 後重新整理。</div>
   </footer>
 
   <script>
-    const BASE_5K = { width: 5120, height: 2880 };
+    const BASE_MODES = {
+      "5k": { key: "5k", label: "5K", width: 5120, height: 2880 },
+      "6k": { key: "6k", label: "6K", width: 6144, height: 3456 }
+    };
+    let baseModeKey = localStorage.getItem("resolutionBaseMode") === "6k" ? "6k" : "5k";
     const SIMS = [
-      { id: "5k", label: "5K", width: 5120, height: 2880, pitch: 1, gapOpacity: 0 },
-      { id: "4k", label: "4K", width: 3840, height: 2160, pitch: 5120 / 3840, gapOpacity: 0.2 },
-      { id: "2k", label: "2K", width: 2560, height: 1440, pitch: 5120 / 2560, gapOpacity: 0.28 },
-      { id: "1k", label: "1K / Full HD", width: 1920, height: 1080, pitch: 5120 / 1920, gapOpacity: 0.36 }
+      { id: "5k", role: "base", gapOpacity: 0 },
+      { id: "4k", label: "4K", width: 3840, height: 2160, gapOpacity: 0.2 },
+      { id: "2k", label: "2K", width: 2560, height: 1440, gapOpacity: 0.28 },
+      { id: "1k", label: "1K", width: 1920, height: 1080, gapOpacity: 0.36 }
     ];
     const SUPPORTED_IMAGE = [".png", ".jpg", ".jpeg", ".webp"];
     const SUPPORTED_VIDEO = [".mp4", ".webm", ".mkv"];
@@ -800,8 +839,15 @@
     const prevBtn = document.getElementById("prev-page");
     const nextBtn = document.getElementById("next-page");
     const pageIndicator = document.getElementById("page-indicator");
+    const pageTitle = document.getElementById("page-title");
+    const baseToggle = document.getElementById("base-toggle");
+    const baseValue = document.getElementById("base-value");
+    const baseNote = document.getElementById("base-note");
     const modeBtn = document.getElementById("mode-btn");
     const fullscreenBtn = document.getElementById("fullscreen-btn");
+    const infoBtn = document.getElementById("info-btn");
+    const infoModal = document.getElementById("info-modal");
+    const infoClose = document.getElementById("info-close");
     const immersiveExitBtn = document.getElementById("immersive-exit");
     const downloadAppBtn = document.getElementById("download-app-btn");
     const downloadModal = document.getElementById("download-modal");
@@ -841,6 +887,56 @@
 
     function setStatus(text) {
       statusText.textContent = text;
+    }
+
+    function currentBase() {
+      return BASE_MODES[baseModeKey];
+    }
+
+    function simWidth(sim) {
+      return sim.role === "base" ? currentBase().width : sim.width;
+    }
+
+    function simHeight(sim) {
+      return sim.role === "base" ? currentBase().height : sim.height;
+    }
+
+    function simPitch(sim) {
+      return sim.role === "base" ? 1 : currentBase().width / sim.width;
+    }
+
+    function formatPitch(value) {
+      return Number.isInteger(value)
+        ? String(value)
+        : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+    }
+
+    function updateBaseUI() {
+      const base = currentBase();
+      const title = `${base.label} / 4K / 2K / 1K 同面積解析度比較`;
+      document.title = title;
+      pageTitle.textContent = title;
+      mediaStage.setAttribute("aria-label", `${base.label}、4K、2K、1K 同面積比較區`);
+      baseToggle.title = `目前是 ${base.label} 基準，點擊切換成 ${base.key === "5k" ? "6K" : "5K"}`;
+      baseValue.textContent = base.label;
+      baseNote.textContent = `${base.width} × ${base.height}，基準點距`;
+
+      ["4k", "2k", "1k"].forEach((id) => {
+        const sim = SIMS.find((item) => item.id === id);
+        const note = document.querySelector(`[data-note-for="${id}"]`);
+        if (!sim || !note) return;
+        note.textContent = `${sim.width} × ${sim.height}，點距約 ${formatPitch(simPitch(sim))} 倍`;
+      });
+    }
+
+    function setBaseMode(nextKey) {
+      if (!BASE_MODES[nextKey] || nextKey === baseModeKey) return;
+      baseModeKey = nextKey;
+      localStorage.setItem("resolutionBaseMode", baseModeKey);
+      buffers.clear();
+      updateBaseUI();
+      requestDraw();
+      setStatus(`已切換為 ${currentBase().label} 基準；四格仍維持同面積比較。`);
     }
 
     function markCloudMode() {
@@ -947,8 +1043,9 @@
 
     function buildDemoMedia() {
       const canvas = document.createElement("canvas");
-      canvas.width = BASE_5K.width;
-      canvas.height = BASE_5K.height;
+      const base = currentBase();
+      canvas.width = base.width;
+      canvas.height = base.height;
       const ctx = canvas.getContext("2d");
       const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
       grad.addColorStop(0, "#113556");
@@ -964,7 +1061,7 @@
       }
       ctx.fillStyle = "#fff3df";
       ctx.font = "800 180px Microsoft JhengHei, sans-serif";
-      ctx.fillText("5K DEMO SAMPLE", 250, 410);
+      ctx.fillText(`${base.label} DEMO SAMPLE`, 250, 410);
       ctx.font = "700 70px Microsoft JhengHei, sans-serif";
       ctx.fillText("放入 images 資料夾即可替換為展示素材", 260, 560);
       return { name: "內建測試影像", type: "image", src: canvas.toDataURL("image/png") };
@@ -1249,7 +1346,7 @@
         }
         resizeCanvases();
         drawAllNow();
-        setStatus(`已載入：${active.name}。請在任一比較區移動滑鼠，同步比較 5K / 4K / 2K / 1K。`);
+        setStatus(`已載入：${active.name}。按住任一比較區拖曳，同步比較 ${currentBase().label} / 4K / 2K / 1K。`);
       } catch (err) {
         setStatus(`${active.name} 載入失敗，請確認檔案可讀取。`);
         console.error(err);
@@ -1414,12 +1511,12 @@
       const crop = computeCrop(canvas.width, canvas.height);
       if (!crop) return;
 
-      const downW = Math.max(8, Math.round(canvas.width * (sim.width / BASE_5K.width)));
-      const downH = Math.max(8, Math.round(canvas.height * (sim.height / BASE_5K.height)));
+      const downW = Math.max(8, Math.round(canvas.width * (simWidth(sim) / currentBase().width)));
+      const downH = Math.max(8, Math.round(canvas.height * (simHeight(sim) / currentBase().height)));
       const buffer = getBuffer(sim.id, downW, downH);
       const bctx = buffer.getContext("2d");
 
-      bctx.imageSmoothingEnabled = sim.id !== "5k";
+      bctx.imageSmoothingEnabled = sim.role !== "base";
       bctx.imageSmoothingQuality = "high";
       bctx.clearRect(0, 0, downW, downH);
       bctx.drawImage(source, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, downW, downH);
@@ -1427,7 +1524,7 @@
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(buffer, 0, 0, downW, downH, 0, 0, canvas.width, canvas.height);
-      drawPixelGap(ctx, canvas.width, canvas.height, sim.pitch, sim.gapOpacity);
+      drawPixelGap(ctx, canvas.width, canvas.height, simPitch(sim), sim.gapOpacity);
     }
 
     function drawAllNow() {
@@ -1593,6 +1690,10 @@
       downloadModal.classList.toggle("open", open);
     }
 
+    function setInfoModal(open) {
+      infoModal.classList.toggle("open", open);
+    }
+
     function setMobileStart(open) {
       mobileStart.classList.toggle("open", open);
     }
@@ -1705,10 +1806,13 @@
       mainVideo.addEventListener("ended", updateVideoControls);
 
       window.addEventListener("keydown", (evt) => {
-        if (evt.key === "Escape" && document.body.classList.contains("immersive")) {
-          setImmersiveMode(false);
-        } else if (evt.key === "Escape" && downloadModal.classList.contains("open")) {
+        if (evt.key !== "Escape") return;
+        if (infoModal.classList.contains("open")) {
+          setInfoModal(false);
+        } else if (downloadModal.classList.contains("open")) {
           setDownloadModal(false);
+        } else if (document.body.classList.contains("immersive")) {
+          setImmersiveMode(false);
         }
       });
 
@@ -1743,6 +1847,30 @@
         requestDraw();
       });
 
+      [baseToggle, infoBtn, infoModal, infoClose].forEach((control) => {
+        control?.addEventListener("pointerdown", (evt) => evt.stopPropagation());
+        control?.addEventListener("mousedown", (evt) => evt.stopPropagation());
+      });
+
+      baseToggle.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        setBaseMode(baseModeKey === "5k" ? "6k" : "5k");
+      });
+
+      infoBtn.addEventListener("click", () => {
+        setInfoModal(true);
+      });
+
+      infoClose.addEventListener("click", () => {
+        setInfoModal(false);
+      });
+
+      infoModal.addEventListener("click", (evt) => {
+        if (evt.target === infoModal) {
+          setInfoModal(false);
+        }
+      });
+
       prevBtn.addEventListener("click", () => {
         page -= 1;
         renderThumbPage();
@@ -1761,6 +1889,7 @@
       updateOrientationClass();
       applyInitialMode();
       bindEvents();
+      updateBaseUI();
       resizeCanvases();
       mediaList = await fetchMediaList();
       if (!mediaList.length) {
