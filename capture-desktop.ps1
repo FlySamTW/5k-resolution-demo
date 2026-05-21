@@ -14,10 +14,22 @@ if (-not (Test-Path $ImagesDir)) {
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class Win32CaptureHelper {
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}
+"@
 
-$shell = New-Object -ComObject Shell.Application
-$shell.MinimizeAll()
-Start-Sleep -Milliseconds 650
+$foreground = [Win32CaptureHelper]::GetForegroundWindow()
+if ($foreground -ne [IntPtr]::Zero) {
+    [Win32CaptureHelper]::ShowWindow($foreground, 6) | Out-Null
+    Start-Sleep -Milliseconds 450
+}
 
 $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
 $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height)
@@ -34,6 +46,8 @@ try {
 finally {
     $graphics.Dispose()
     $bitmap.Dispose()
-    Start-Sleep -Milliseconds 120
-    $shell.UndoMinimizeAll()
+    if ($foreground -ne [IntPtr]::Zero) {
+        Start-Sleep -Milliseconds 120
+        [Win32CaptureHelper]::ShowWindow($foreground, 9) | Out-Null
+    }
 }
