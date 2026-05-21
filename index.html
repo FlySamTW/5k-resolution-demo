@@ -401,6 +401,45 @@
       transform: translate(-50%, -50%);
     }
 
+    .video-controls {
+      position: absolute;
+      left: 50%;
+      bottom: 16px;
+      z-index: 7;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      background: rgba(0, 0, 0, 0.88);
+      transform: translateX(-50%);
+    }
+
+    body.video-active .video-controls {
+      display: flex;
+    }
+
+    .video-controls button {
+      width: 42px;
+      height: 34px;
+      border: 1px solid rgba(240, 166, 78, 0.72);
+      background: #080808;
+      color: #ffd39a;
+      font: 900 15px/1 system-ui, sans-serif;
+      cursor: pointer;
+    }
+
+    .video-controls button:hover {
+      background: #1b140d;
+      color: #fff1d8;
+    }
+
+    .video-controls .play-toggle {
+      width: 58px;
+      color: #ffffff;
+      background: #4a2f12;
+    }
+
     .immersive-exit {
       position: fixed;
       top: 12px;
@@ -643,6 +682,11 @@
         <canvas class="sim-canvas" id="canvas-5k"></canvas>
         <svg class="dot-mask" id="mask-5k" aria-hidden="true"></svg>
       </div>
+      <div class="video-controls" id="video-controls" aria-label="影片控制列">
+        <button id="video-back" type="button" title="倒退 5 秒" aria-label="倒退 5 秒">-5</button>
+        <button class="play-toggle" id="video-play-toggle" type="button" title="播放或暫停" aria-label="播放或暫停">暫停</button>
+        <button id="video-forward" type="button" title="快進 5 秒" aria-label="快進 5 秒">+5</button>
+      </div>
     </article>
     <article class="compare-panel" data-panel-id="4k">
       <div class="sim-label">
@@ -765,6 +809,10 @@
     const downloadConfirm = document.getElementById("download-confirm");
     const mobileStart = document.getElementById("mobile-start");
     const mobileStartBtn = document.getElementById("mobile-start-btn");
+    const videoControls = document.getElementById("video-controls");
+    const videoBackBtn = document.getElementById("video-back");
+    const videoPlayToggleBtn = document.getElementById("video-play-toggle");
+    const videoForwardBtn = document.getElementById("video-forward");
 
     let mediaList = [];
     let filtered = [];
@@ -1177,6 +1225,7 @@
 
       setStatus(`正在載入：${active.name}`);
       currentKind = active.type;
+      document.body.classList.toggle("video-active", active.type === "video");
       crosshair.style.opacity = "0";
 
       try {
@@ -1188,6 +1237,7 @@
           mainVideo.load();
           await waitForVideo(mainVideo);
           await mainVideo.play().catch(() => {});
+          updateVideoControls();
         } else {
           mainVideo.pause();
           mainVideo.removeAttribute("src");
@@ -1195,6 +1245,7 @@
           mainImg.src = active.src;
           mainImg.style.display = "none";
           await waitForImage(mainImg);
+          updateVideoControls();
         }
         resizeCanvases();
         drawAllNow();
@@ -1438,10 +1489,24 @@
           mainVideo.pause();
           setStatus("影片已暫停；再次點按畫面可繼續播放。");
         }
+        updateVideoControls();
         requestDraw();
       } catch (_err) {
         setStatus("瀏覽器阻擋自動播放，請再點按一次影片畫面。");
       }
+    }
+
+    function updateVideoControls() {
+      if (!videoPlayToggleBtn) return;
+      videoPlayToggleBtn.textContent = mainVideo.paused || mainVideo.ended ? "播放" : "暫停";
+      videoPlayToggleBtn.setAttribute("aria-label", mainVideo.paused || mainVideo.ended ? "播放影片" : "暫停影片");
+    }
+
+    function seekVideo(deltaSeconds) {
+      if (currentKind !== "video" || !Number.isFinite(mainVideo.duration)) return;
+      mainVideo.currentTime = Math.min(Math.max(0, mainVideo.currentTime + deltaSeconds), mainVideo.duration);
+      requestDraw();
+      setStatus(deltaSeconds > 0 ? "影片已快進 5 秒。" : "影片已倒退 5 秒。");
     }
 
     function handlePointerDown(evt) {
@@ -1620,6 +1685,24 @@
       immersiveExitBtn.addEventListener("click", () => {
         setImmersiveMode(false);
       });
+
+      [videoControls, videoBackBtn, videoPlayToggleBtn, videoForwardBtn].forEach((control) => {
+        control?.addEventListener("pointerdown", (evt) => evt.stopPropagation());
+        control?.addEventListener("mousedown", (evt) => evt.stopPropagation());
+        control?.addEventListener("click", (evt) => evt.stopPropagation());
+      });
+      videoBackBtn?.addEventListener("click", () => {
+        seekVideo(-5);
+      });
+      videoPlayToggleBtn?.addEventListener("click", () => {
+        toggleVideoPlayback();
+      });
+      videoForwardBtn?.addEventListener("click", () => {
+        seekVideo(5);
+      });
+      mainVideo.addEventListener("play", updateVideoControls);
+      mainVideo.addEventListener("pause", updateVideoControls);
+      mainVideo.addEventListener("ended", updateVideoControls);
 
       window.addEventListener("keydown", (evt) => {
         if (evt.key === "Escape" && document.body.classList.contains("immersive")) {
