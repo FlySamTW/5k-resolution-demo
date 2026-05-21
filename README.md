@@ -34,6 +34,8 @@ http://localhost:18765/?mode=immersive
 
 注意：MKV 會列入素材清單，但實際能不能播放仍取決於瀏覽器與影片內部編碼；展示現場最穩定的格式仍建議使用 MP4 / H.264。
 
+影片縮圖若要最穩定，請在影片旁放同名 poster 圖，例如 `demo.mp4` 搭配 `demo.poster.jpg`。沒有 poster 時，網頁會嘗試從影片中段自動擷取代表幀，但不同瀏覽器和影片格式不一定都能成功。
+
 部署在 Zeabur 時，小型素材可以一起放進 Git repo 的 `images/`，推送後讓 Zeabur 重新部署。
 
 大型影片不建議放進 Git；若影片已壓到 100MB 以下，可以先放進 `images/` 隨 Git 部署。若希望上線後直接從網頁後台上傳素材，請在 Zeabur 掛載 Volume，並設定：

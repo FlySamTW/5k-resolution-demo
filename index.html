@@ -822,6 +822,18 @@
       return "unknown";
     }
 
+    function stripExtension(name) {
+      return name.replace(/\.[^.]+$/, "");
+    }
+
+    function posterKey(name) {
+      return stripExtension(name).replace(/\.poster$/i, "").toLowerCase();
+    }
+
+    function isPosterImage(name) {
+      return /\.(poster)\.(png|jpe?g|webp)$/i.test(name);
+    }
+
     function srcForName(name) {
       return `images/${name.split("/").map(encodeURIComponent).join("/")}`;
     }
@@ -843,7 +855,7 @@
     }
 
     function normalizeFiles(files) {
-      return files
+      const normalized = files
         .map((file) => typeof file === "string" ? { name: file, src: srcForName(file) } : file)
         .filter((file) => file && file.name && fileType(file.name) !== "unknown")
         .map((file) => ({
@@ -852,6 +864,15 @@
           src: file.src || srcForName(file.name),
           modifiedAt: Number(file.modifiedAt || file.mtimeMs || 0)
         }));
+      const posterMap = new Map();
+      normalized.forEach((file) => {
+        if (file.type === "image" && isPosterImage(file.name)) {
+          posterMap.set(posterKey(file.name), file.src);
+        }
+      });
+      return normalized
+        .filter((file) => !(file.type === "image" && isPosterImage(file.name)))
+        .map((file) => file.type === "video" ? { ...file, posterSrc: posterMap.get(posterKey(file.name)) || "" } : file);
     }
 
     function mediaKey(item) {
@@ -1006,6 +1027,10 @@
       const cached = videoThumbCache.get(key);
       showVideoFallback(preview);
 
+      if (item.posterSrc) {
+        applyVideoThumbnail(preview, item.posterSrc, `${item.name} poster`);
+        return;
+      }
       if (typeof cached === "string") {
         applyVideoThumbnail(preview, cached, item.name);
         return;

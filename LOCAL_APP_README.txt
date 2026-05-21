@@ -13,6 +13,7 @@ How to update media:
 - Refresh the browser page to reload the media list.
 - The app also checks the images folder periodically while it is open.
 - MKV files are listed as videos, but playback still depends on the browser and the codec inside the file. MP4 / H.264 is the safest format for demos.
+- For stable video thumbnails, put a poster image next to the video. Example: demo.mp4 + demo.poster.jpg.
 
 Notes:
 
