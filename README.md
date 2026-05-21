@@ -11,13 +11,13 @@ npm start
 開啟：
 
 ```text
-http://localhost:8899/
+http://localhost:18765/
 ```
 
 沉浸展示模式：
 
 ```text
-http://localhost:8899/?mode=immersive
+http://localhost:18765/?mode=immersive
 ```
 
 ## 新增圖片或影片
@@ -56,7 +56,7 @@ Zeabur 可部署 Node.js 專案。此專案的啟動指令是：
 npm start
 ```
 
-Zeabur 會使用平台提供的 `PORT` 環境變數；本機沒有 `PORT` 時預設使用 `8899`。
+Zeabur 會使用平台提供的 `PORT` 環境變數；本機沒有 `PORT` 時預設使用 `18765`，若被占用會改用下一個可用連接埠。
 
 建議環境變數：
 

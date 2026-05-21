@@ -1,5 +1,4 @@
 const http = require("node:http");
-const childProcess = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const Busboy = require("busboy");
@@ -8,37 +7,17 @@ const { ZipArchive } = require("archiver");
 const root = __dirname;
 const bundledImagesDir = path.join(root, "images");
 const mediaDir = path.resolve(process.env.MEDIA_DIR || bundledImagesDir);
-const requestedPort = Number(process.env.PORT || 8899);
-const fallbackPorts = process.env.PORT ? [requestedPort] : [8899, 8900, 8910, 8920, 8930];
+const requestedPort = Number(process.env.PORT || 18765);
+const fallbackPorts = process.env.PORT ? [requestedPort] : [18765, 18766, 18767, 18768, 18769];
 const allowedMediaExt = new Set([".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm"]);
 const adminPassword = process.env.ADMIN_PASSWORD || "";
 const localPackageFiles = [
   "index.html",
   "啟動展示.bat",
+  "launch-demo.ps1",
   "start-demo.ps1",
-  "watch-printscreen.ps1",
-  "capture-desktop.ps1",
   "LOCAL_APP_README.txt"
 ];
-
-function startPrintScreenWatcherForLocalWindows() {
-  if (process.env.PORT || process.platform !== "win32") return;
-
-  const watcherPath = path.join(root, "watch-printscreen.ps1");
-  if (!fs.existsSync(watcherPath)) return;
-
-  const child = childProcess.spawn(
-    "powershell.exe",
-    ["-STA", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", watcherPath],
-    {
-      cwd: root,
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true
-    }
-  );
-  child.unref();
-}
 
 function contentType(filePath) {
   switch (path.extname(filePath).toLowerCase()) {
@@ -146,38 +125,6 @@ function sendLocalAppZip(res) {
   });
   archive.append("", { name: "images/.keep" });
   archive.finalize();
-}
-
-function captureDesktop(res) {
-  if (process.env.PORT || process.platform !== "win32") {
-    res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify({ error: "local Windows only" }));
-    return;
-  }
-
-  const scriptPath = path.join(root, "capture-desktop.ps1");
-  if (!fs.existsSync(scriptPath)) {
-    res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify({ error: "capture script not found" }));
-    return;
-  }
-
-  childProcess.execFile(
-    "powershell.exe",
-    ["-STA", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-ImagesDir", bundledImagesDir],
-    { cwd: root, windowsHide: true, timeout: 15000 },
-    (err, stdout) => {
-      if (err) {
-        console.error(err);
-        res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: "capture failed" }));
-        return;
-      }
-
-      const name = stdout.trim().split(/\r?\n/).filter(Boolean).pop() || "";
-      sendJson(res, { name, src: `images/${encodeURIComponent(name)}` });
-    }
-  );
 }
 
 function safeName(name) {
@@ -305,11 +252,6 @@ function handleRequest(req, res) {
       return;
     }
 
-    if (url.pathname === "/api/capture-desktop" && req.method === "POST") {
-      captureDesktop(res);
-      return;
-    }
-
     if (url.pathname === "/admin") {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
       res.end(adminPage());
@@ -366,4 +308,3 @@ function listenWithFallback(index = 0) {
 }
 
 listenWithFallback();
-startPrintScreenWatcherForLocalWindows();
