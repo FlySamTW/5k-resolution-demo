@@ -1,6 +1,7 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const { Readable } = require("node:stream");
 const Busboy = require("busboy");
 const { ZipArchive } = require("archiver");
 
@@ -154,6 +155,51 @@ function isAllowedDriveFile(file) {
 
 function driveMediaSrc(fileId, name) {
   return `/drive-media/${encodeURIComponent(fileId)}/${encodeURIComponent(name)}`;
+}
+
+async function proxyDriveMedia(req, res, fileId, name) {
+  if (!googleDriveApiKey) {
+    res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("尚未設定 Google Drive API key。");
+    return;
+  }
+
+  const params = new URLSearchParams({
+    alt: "media",
+    key: googleDriveApiKey
+  });
+  const headers = {};
+  if (req.headers.range) {
+    headers.Range = req.headers.range;
+  }
+
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?${params.toString()}`, {
+    headers
+  });
+
+  if (!response.ok && response.status !== 206 && response.status !== 304) {
+    const message = await response.text().catch(() => "");
+    res.writeHead(response.status, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+    res.end(message || "Google Drive 檔案讀取失敗。");
+    return;
+  }
+
+  const outHeaders = {
+    "Content-Type": response.headers.get("content-type") || contentType(name),
+    "Cache-Control": "public, max-age=3600",
+    "Accept-Ranges": response.headers.get("accept-ranges") || "bytes"
+  };
+  ["content-length", "content-range", "etag", "last-modified"].forEach((header) => {
+    const value = response.headers.get(header);
+    if (value) outHeaders[header.replace(/\b\w/g, (char) => char.toUpperCase())] = value;
+  });
+
+  res.writeHead(response.status, outHeaders);
+  if (req.method === "HEAD" || !response.body) {
+    res.end();
+    return;
+  }
+  Readable.fromWeb(response.body).pipe(res);
 }
 
 async function driveFiles() {
@@ -358,16 +404,13 @@ async function handleRequest(req, res) {
     if (url.pathname.startsWith("/drive-media/")) {
       const parts = url.pathname.slice("/drive-media/".length).split("/");
       const fileId = decodeURIComponent(parts[0] || "");
+      const name = decodeURIComponent(parts.slice(1).join("/") || "drive-media");
       if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) {
         res.writeHead(403);
         res.end("Forbidden");
         return;
       }
-      res.writeHead(302, {
-        Location: `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
-        "Cache-Control": "public, max-age=300"
-      });
-      res.end();
+      await proxyDriveMedia(req, res, fileId, name);
       return;
     }
 
