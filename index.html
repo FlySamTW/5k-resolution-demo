@@ -557,17 +557,19 @@
     }
 
     .thumb-grid {
-      display: grid;
-      grid-template-columns: repeat(8, minmax(0, 1fr));
+      display: flex;
       gap: 8px;
       min-height: 0;
-      overflow: hidden;
+      overflow-x: auto;
+      overflow-y: hidden;
       padding-right: min(380px, 34vw);
+      scrollbar-width: thin;
     }
 
     .thumb {
       display: grid;
       grid-template-rows: 1fr auto;
+      flex: 1 0 clamp(118px, 7.2vw, 220px);
       min-width: 0;
       height: clamp(82px, 11vh, 132px);
       padding: 0;
@@ -676,10 +678,83 @@
       border-color: rgba(255, 255, 255, 0.15);
     }
 
-    @media (max-width: 1200px) {
-      .thumb-grid {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-      }
+    .brand-watermark {
+      position: absolute;
+      right: 18px;
+      bottom: 16px;
+      z-index: 6;
+      color: rgba(255, 255, 255, 0.72);
+      font-family: SamsungOne, "Samsung Sharp Sans", Arial, Helvetica, sans-serif;
+      font-size: clamp(12px, 0.9vw, 18px);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.72);
+      pointer-events: none;
+    }
+
+    .immersive-dots {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      z-index: 65;
+      display: none;
+      max-width: min(88vw, 1120px);
+      padding: 8px 10px;
+      gap: 7px;
+      overflow-x: auto;
+      border: 1px solid rgba(255, 216, 163, 0.24);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.58);
+      transform: translateX(-50%);
+      backdrop-filter: blur(5px);
+      scrollbar-width: none;
+    }
+
+    .immersive-dots::-webkit-scrollbar {
+      display: none;
+    }
+
+    body.immersive .immersive-dots {
+      display: flex;
+    }
+
+    .media-dot {
+      display: grid;
+      place-items: center;
+      flex: 0 0 30px;
+      width: 30px;
+      height: 30px;
+      border: 1px solid rgba(255, 216, 163, 0.52);
+      border-radius: 50%;
+      background: rgba(18, 18, 18, 0.88);
+      color: #ffe0b9;
+      font: 800 13px/1 system-ui, sans-serif;
+      cursor: pointer;
+    }
+
+    .media-dot.active {
+      border-color: #f0a64e;
+      background: #f0a64e;
+      color: #151515;
+    }
+
+    .drive-link {
+      display: none;
+      position: absolute;
+      left: 12px;
+      bottom: 10px;
+      z-index: 5;
+      padding: 6px 10px;
+      border: 1px solid rgba(240, 166, 78, 0.5);
+      border-radius: 8px;
+      background: rgba(20, 16, 12, 0.9);
+      color: #ffe0b9;
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    body.cloud .drive-link {
+      display: inline-flex;
     }
 
     @media (max-width: 820px) {
@@ -693,7 +768,7 @@
       }
 
       .thumb-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        padding-right: 0;
       }
     }
   </style>
@@ -735,6 +810,7 @@
         <canvas class="sim-canvas" id="canvas-5k"></canvas>
         <svg class="dot-mask" id="mask-5k" aria-hidden="true"></svg>
       </div>
+      <div class="brand-watermark">SAMSUNG Odyssey Monitor</div>
       <div class="video-controls" id="video-controls" aria-label="影片控制列">
         <button id="video-back" type="button" title="倒退 5 秒" aria-label="倒退 5 秒">-5</button>
         <button class="play-toggle" id="video-play-toggle" type="button" title="播放或暫停" aria-label="播放或暫停">暫停</button>
@@ -788,6 +864,7 @@
   </main>
 
   <button class="immersive-exit" id="immersive-exit" type="button">返回選單</button>
+  <nav class="immersive-dots" id="immersive-dots" aria-label="沉浸模式媒體選擇"></nav>
 
   <div class="download-modal" id="download-modal" role="dialog" aria-modal="true" aria-labelledby="download-title">
     <div class="download-card">
@@ -833,6 +910,7 @@
   </div>
 
   <footer class="thumb-panel">
+    <a class="drive-link" id="drive-link" href="https://drive.google.com/drive/folders/1k705zXDNpHdknPeSPnANBdYDG2wIP_OD?usp=sharing" target="_blank" rel="noopener">雲端硬碟</a>
     <div class="pager">
       <button class="pager-btn" id="prev-page" type="button">上一頁</button>
       <span id="page-indicator">第 1 / 1 頁</span>
@@ -870,6 +948,8 @@
     const statusText = document.getElementById("status-text");
     const mediaCountBadge = document.getElementById("media-count-badge");
     const thumbGrid = document.getElementById("thumb-grid");
+    const immersiveDots = document.getElementById("immersive-dots");
+    const driveLink = document.getElementById("drive-link");
     const emptyMsg = document.getElementById("empty-msg");
     const prevBtn = document.getElementById("prev-page");
     const nextBtn = document.getElementById("next-page");
@@ -981,6 +1061,18 @@
       document.body.classList.toggle("local", isLocal && window.location.protocol !== "file:");
     }
 
+    async function loadDriveConfig() {
+      if (!driveLink || window.location.protocol === "file:") return;
+      try {
+        const response = await fetch("/api/drive-config", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.folderUrl) {
+          driveLink.href = data.folderUrl;
+        }
+      } catch (_err) {}
+    }
+
     function detectMobileExperience() {
       const ua = navigator.userAgent || "";
       const coarse = window.matchMedia?.("(pointer: coarse)")?.matches;
@@ -1027,6 +1119,9 @@
         if (!response.ok) throw new Error("無法讀取媒體清單");
         const data = await response.json();
         if (!Array.isArray(data.files)) throw new Error("媒體清單格式不正確");
+        if (data.drive && data.drive.enabled && !data.drive.configured) {
+          setStatus("雲端硬碟已連結；若要自動讀取 Drive 素材，請在 Zeabur 設定 GOOGLE_DRIVE_API_KEY。");
+        }
         return normalizeFiles(data.files);
       } catch (_err) {
         return normalizeFiles(STATIC_FALLBACK);
@@ -1041,7 +1136,8 @@
           name: file.name,
           type: fileType(file.name),
           src: file.src || srcForName(file.name),
-          modifiedAt: Number(file.modifiedAt || file.mtimeMs || 0)
+          modifiedAt: Number(file.modifiedAt || file.mtimeMs || 0),
+          thumbnailSrc: file.thumbnailSrc || ""
         }));
       const posterMap = new Map();
       normalized.forEach((file) => {
@@ -1051,7 +1147,7 @@
       });
       return normalized
         .filter((file) => !(file.type === "image" && isPosterImage(file.name)))
-        .map((file) => file.type === "video" ? { ...file, posterSrc: posterMap.get(posterKey(file.name)) || "" } : file);
+        .map((file) => file.type === "video" ? { ...file, posterSrc: posterMap.get(posterKey(file.name)) || file.thumbnailSrc || "" } : file);
     }
 
     function mediaKey(item) {
@@ -1280,6 +1376,28 @@
       prevBtn.disabled = page <= 1;
       nextBtn.disabled = page >= totalPages;
       mediaCountBadge.textContent = `媒體 ${mediaList.length} 筆`;
+      renderImmersiveDots();
+    }
+
+    function renderImmersiveDots() {
+      immersiveDots.replaceChildren();
+      mediaList.forEach((item, idx) => {
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = `media-dot${idx === activeIndex ? " active" : ""}`;
+        dot.textContent = String(idx + 1);
+        dot.title = item.name;
+        dot.setAttribute("aria-label", `切換到第 ${idx + 1} 個媒體：${item.name}`);
+        dot.addEventListener("pointerdown", (evt) => evt.stopPropagation());
+        dot.addEventListener("mousedown", (evt) => evt.stopPropagation());
+        dot.addEventListener("click", () => {
+          activeIndex = idx;
+          page = Math.max(1, Math.ceil((idx + 1) / ITEMS_PER_PAGE));
+          loadActiveMedia();
+          renderThumbPage();
+        });
+        immersiveDots.appendChild(dot);
+      });
     }
 
     function getActiveMedia() {
@@ -1924,6 +2042,7 @@
       updateOrientationClass();
       applyInitialMode();
       bindEvents();
+      await loadDriveConfig();
       updateBaseUI();
       resizeCanvases();
       mediaList = await fetchMediaList();

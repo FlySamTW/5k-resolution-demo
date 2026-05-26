@@ -11,6 +11,9 @@ const requestedPort = Number(process.env.PORT || 18765);
 const fallbackPorts = process.env.PORT ? [requestedPort] : [18765, 18766, 18767, 18768, 18769];
 const allowedMediaExt = new Set([".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mkv"]);
 const adminPassword = process.env.ADMIN_PASSWORD || "";
+const googleDriveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || "1k705zXDNpHdknPeSPnANBdYDG2wIP_OD";
+const googleDriveApiKey = process.env.GOOGLE_DRIVE_API_KEY || "";
+const googleDriveFolderUrl = `https://drive.google.com/drive/folders/${googleDriveFolderId}?usp=sharing`;
 const localPackageFiles = [
   "index.html",
   "啟動展示.bat",
@@ -144,10 +147,57 @@ function filesInDir(dir, prefix) {
     });
 }
 
-function mediaFiles() {
+function isAllowedDriveFile(file) {
+  const ext = path.extname(file.name || "").toLowerCase();
+  return allowedMediaExt.has(ext);
+}
+
+function driveMediaSrc(fileId, name) {
+  return `/drive-media/${encodeURIComponent(fileId)}/${encodeURIComponent(name)}`;
+}
+
+async function driveFiles() {
+  if (!googleDriveFolderId || !googleDriveApiKey) {
+    return [];
+  }
+
+  const files = [];
+  let pageToken = "";
+  do {
+    const params = new URLSearchParams({
+      key: googleDriveApiKey,
+      q: `'${googleDriveFolderId}' in parents and trashed=false`,
+      fields: "nextPageToken,files(id,name,mimeType,modifiedTime,size,thumbnailLink)",
+      pageSize: "1000",
+      orderBy: "name"
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Google Drive API failed: ${response.status}`);
+    }
+    const data = await response.json();
+    (data.files || []).filter(isAllowedDriveFile).forEach((file) => {
+      files.push({
+        name: file.name,
+        src: driveMediaSrc(file.id, file.name),
+        modifiedAt: file.modifiedTime ? Date.parse(file.modifiedTime) : 0,
+        thumbnailSrc: file.thumbnailLink || "",
+        source: "google-drive"
+      });
+    });
+    pageToken = data.nextPageToken || "";
+  } while (pageToken);
+
+  return files;
+}
+
+async function mediaFiles() {
   const files = [
     ...filesInDir(bundledImagesDir, "images"),
-    ...(mediaDir === bundledImagesDir ? [] : filesInDir(mediaDir, "media"))
+    ...(mediaDir === bundledImagesDir ? [] : filesInDir(mediaDir, "media")),
+    ...await driveFiles()
   ];
   const seen = new Set();
   return files
@@ -236,11 +286,39 @@ function handleUpload(req, res, url) {
   req.pipe(busboy);
 }
 
-function handleRequest(req, res) {
+async function handleRequest(req, res) {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     if (url.pathname === "/api/media") {
-      sendJson(res, { files: mediaFiles() });
+      let files = [];
+      let driveError = "";
+      try {
+        files = await mediaFiles();
+      } catch (err) {
+        driveError = err.message || "Google Drive 讀取失敗";
+        files = [
+          ...filesInDir(bundledImagesDir, "images"),
+          ...(mediaDir === bundledImagesDir ? [] : filesInDir(mediaDir, "media"))
+        ];
+      }
+      sendJson(res, {
+        files,
+        drive: {
+          enabled: Boolean(googleDriveFolderId),
+          configured: Boolean(googleDriveApiKey),
+          folderUrl: googleDriveFolderUrl,
+          error: driveError
+        }
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/drive-config") {
+      sendJson(res, {
+        enabled: Boolean(googleDriveFolderId),
+        configured: Boolean(googleDriveApiKey),
+        folderUrl: googleDriveFolderUrl
+      });
       return;
     }
 
@@ -274,6 +352,22 @@ function handleRequest(req, res) {
         return;
       }
       sendFile(req, res, filePath);
+      return;
+    }
+
+    if (url.pathname.startsWith("/drive-media/")) {
+      const parts = url.pathname.slice("/drive-media/".length).split("/");
+      const fileId = decodeURIComponent(parts[0] || "");
+      if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) {
+        res.writeHead(403);
+        res.end("Forbidden");
+        return;
+      }
+      res.writeHead(302, {
+        Location: `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
+        "Cache-Control": "public, max-age=300"
+      });
+      res.end();
       return;
     }
 
