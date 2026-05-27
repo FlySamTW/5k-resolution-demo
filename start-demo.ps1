@@ -6,8 +6,12 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $imagesDir = Join-Path $root "images"
+$configPath = Join-Path $root "config.json"
 if (-not (Test-Path $imagesDir)) {
     New-Item -Path $imagesDir -ItemType Directory | Out-Null
+}
+if (-not (Test-Path $configPath)) {
+    @{ defaultBaseMode = "5k" } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $configPath -Encoding UTF8
 }
 
 $allowedMediaExt = @(".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mkv")
@@ -66,6 +70,43 @@ function Write-JsonResponse($stream, $obj) {
 function Write-TextResponse($stream, [int]$status, [string]$text) {
     $bytes = [Text.Encoding]::UTF8.GetBytes($text)
     Write-Response $stream $status @{ "Content-Type" = "text/plain; charset=utf-8" } $bytes
+}
+
+function Normalize-BaseMode([string]$value) {
+    if ($value -eq "6k") { return "6k" }
+    return "5k"
+}
+
+function Read-Settings {
+    try {
+        $data = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        return @{ defaultBaseMode = (Normalize-BaseMode $data.defaultBaseMode) }
+    }
+    catch {
+        return @{ defaultBaseMode = "5k" }
+    }
+}
+
+function Write-Settings([string]$baseMode) {
+    $settings = Read-Settings
+    $settings.defaultBaseMode = Normalize-BaseMode $baseMode
+    $settings | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $configPath -Encoding UTF8
+    return $settings
+}
+
+function Get-QueryParams([string]$target) {
+    $params = @{}
+    $question = $target.IndexOf("?")
+    if ($question -lt 0) { return $params }
+    $query = $target.Substring($question + 1)
+    foreach ($pair in $query.Split("&")) {
+        if (-not $pair) { continue }
+        $parts = $pair.Split("=", 2)
+        $key = [Uri]::UnescapeDataString($parts[0])
+        $value = if ($parts.Length -gt 1) { [Uri]::UnescapeDataString($parts[1]) } else { "" }
+        $params[$key] = $value
+    }
+    return $params
 }
 
 function Write-FileResponse($stream, [string]$path, [hashtable]$headers) {
@@ -137,7 +178,9 @@ function Read-Request($stream) {
 
     return @{
         Method = $parts[0].ToUpperInvariant()
+        Target = $parts[1]
         Path = [Uri]::UnescapeDataString($parts[1].Split("?")[0])
+        Query = Get-QueryParams $parts[1]
         Headers = $headers
     }
 }
@@ -162,6 +205,19 @@ function Handle-Request($stream, $request) {
 
     if ($path -eq "/api/app-root") {
         Write-JsonResponse $stream @{ root = $root }
+        return
+    }
+
+    if ($path -eq "/api/settings") {
+        if ($request.Method -eq "GET") {
+            Write-JsonResponse $stream (Read-Settings)
+            return
+        }
+        if ($request.Method -eq "POST") {
+            Write-JsonResponse $stream (Write-Settings $request.Query["defaultBaseMode"])
+            return
+        }
+        Write-TextResponse $stream 405 "Method not allowed"
         return
     }
 

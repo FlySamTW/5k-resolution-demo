@@ -9,6 +9,7 @@ const { ZipArchive } = require("archiver");
 const root = __dirname;
 const bundledImagesDir = path.join(root, "images");
 const mediaDir = path.resolve(process.env.MEDIA_DIR || bundledImagesDir);
+const configPath = path.join(root, "config.json");
 const requestedPort = Number(process.env.PORT || 18765);
 const fallbackPorts = process.env.PORT ? [requestedPort] : [18765, 18766, 18767, 18768, 18769];
 const allowedMediaExt = new Set([".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mkv"]);
@@ -21,6 +22,7 @@ const maxDriveCacheBytes = Number(process.env.DRIVE_CACHE_MAX_MB || 300) * 1024 
 const driveCacheJobs = new Set();
 const localPackageFiles = [
   "index.html",
+  "config.json",
   "啟動展示.bat",
   "launch-demo.ps1",
   "start-demo.ps1",
@@ -63,6 +65,53 @@ function sendJson(res, payload) {
     "Cache-Control": "no-store"
   });
   res.end(body);
+}
+
+function normalizeBaseMode(value) {
+  return value === "6k" ? "6k" : "5k";
+}
+
+function readSettings() {
+  try {
+    if (!fs.existsSync(configPath)) {
+      return { defaultBaseMode: "5k" };
+    }
+    const data = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    return { defaultBaseMode: normalizeBaseMode(data.defaultBaseMode) };
+  } catch (_err) {
+    return { defaultBaseMode: "5k" };
+  }
+}
+
+function writeSettings(settings) {
+  const next = {
+    ...readSettings(),
+    ...settings
+  };
+  next.defaultBaseMode = normalizeBaseMode(next.defaultBaseMode);
+  fs.writeFileSync(configPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  return next;
+}
+
+function isLocalRequest(req) {
+  const host = (req.headers.host || "").split(":")[0].toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      try {
+        const text = Buffer.concat(chunks).toString("utf8").trim();
+        resolve(text ? JSON.parse(text) : {});
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on("error", reject);
+  });
 }
 
 function sendFile(req, res, filePath) {
@@ -421,6 +470,27 @@ async function handleRequest(req, res) {
         configured: Boolean(googleDriveApiKey),
         folderUrl: googleDriveFolderUrl
       });
+      return;
+    }
+
+    if (url.pathname === "/api/settings") {
+      if (req.method === "GET") {
+        sendJson(res, readSettings());
+        return;
+      }
+      if (req.method === "POST") {
+        if (!isLocalRequest(req)) {
+          res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("Settings can only be changed from the local app.");
+          return;
+        }
+        const body = await readJsonBody(req).catch(() => ({}));
+        const defaultBaseMode = body.defaultBaseMode || url.searchParams.get("defaultBaseMode");
+        sendJson(res, writeSettings({ defaultBaseMode }));
+        return;
+      }
+      res.writeHead(405);
+      res.end("Method not allowed");
       return;
     }
 

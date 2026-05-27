@@ -920,7 +920,7 @@
         const match = document.cookie.match(new RegExp(`(?:^|; )${BASE_MODE_COOKIE_NAME}=([^;]+)`));
         stored = match ? decodeURIComponent(match[1]) : "";
       }
-      return stored === "6k" ? "6k" : "5k";
+      return stored === "6k" || stored === "5k" ? stored : "";
     }
 
     function writeStoredBaseMode(value) {
@@ -930,7 +930,37 @@
       document.cookie = `${BASE_MODE_COOKIE_NAME}=${encodeURIComponent(value)}; Max-Age=31536000; Path=/; SameSite=Lax`;
     }
 
-    let baseModeKey = readStoredBaseMode();
+    function isLocalRuntime() {
+      const host = window.location.hostname;
+      return host === "localhost" || host === "127.0.0.1" || host === "" || window.location.protocol === "file:";
+    }
+
+    async function loadServerBaseMode() {
+      if (window.location.protocol === "file:") return "";
+      try {
+        const response = await fetch("/api/settings", { cache: "no-store" });
+        if (!response.ok) return "";
+        const data = await response.json();
+        return data.defaultBaseMode === "6k" || data.defaultBaseMode === "5k" ? data.defaultBaseMode : "";
+      } catch (_err) {
+        return "";
+      }
+    }
+
+    async function persistBaseMode(value) {
+      writeStoredBaseMode(value);
+      if (!isLocalRuntime() || window.location.protocol === "file:") return;
+      try {
+        await fetch(`/api/settings?defaultBaseMode=${encodeURIComponent(value)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ defaultBaseMode: value }),
+          keepalive: true
+        });
+      } catch (_err) {}
+    }
+
+    let baseModeKey = readStoredBaseMode() || "5k";
     const SIMS = [
       { id: "5k", role: "base", gapOpacity: 0 },
       { id: "4k", label: "4K", width: 3840, height: 2160, gapOpacity: 0.2 },
@@ -1051,7 +1081,7 @@
     function setBaseMode(nextKey) {
       if (!BASE_MODES[nextKey] || nextKey === baseModeKey) return;
       baseModeKey = nextKey;
-      writeStoredBaseMode(baseModeKey);
+      persistBaseMode(baseModeKey);
       buffers.clear();
       updateBaseUI();
       requestDraw();
@@ -1059,8 +1089,7 @@
     }
 
     function markCloudMode() {
-      const host = window.location.hostname;
-      const isLocal = host === "localhost" || host === "127.0.0.1" || host === "" || window.location.protocol === "file:";
+      const isLocal = isLocalRuntime();
       document.body.classList.toggle("cloud", !isLocal);
       document.body.classList.toggle("local", isLocal && window.location.protocol !== "file:");
     }
@@ -2034,6 +2063,12 @@
       updateOrientationClass();
       applyInitialMode();
       bindEvents();
+      const browserBaseMode = readStoredBaseMode();
+      const serverBaseMode = await loadServerBaseMode();
+      baseModeKey = isLocalRuntime() && serverBaseMode
+        ? serverBaseMode
+        : browserBaseMode || serverBaseMode || baseModeKey;
+      writeStoredBaseMode(baseModeKey);
       updateBaseUI();
       resizeCanvases();
       mediaList = await fetchMediaList();
