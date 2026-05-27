@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="copyright" content="Samsung Taiwan Monitor Team">
   <link rel="icon" href="data:,">
   <title>5K / 4K / 2K / 1K 同面積顯示比較</title>
+  <!-- Internal display demo by Samsung Taiwan Monitor Team. -->
   <style>
     :root {
       --bg: #10100f;
@@ -901,11 +903,34 @@
   </footer>
 
   <script>
+    // Internal display demo by Samsung Taiwan Monitor Team.
     const BASE_MODES = {
       "5k": { key: "5k", label: "5K", width: 5120, height: 2880 },
       "6k": { key: "6k", label: "6K", width: 6144, height: 3456 }
     };
-    let baseModeKey = localStorage.getItem("resolutionBaseMode") === "6k" ? "6k" : "5k";
+    const BASE_MODE_STORAGE_KEY = "resolutionBaseMode";
+    const BASE_MODE_COOKIE_NAME = "resolutionBaseMode";
+
+    function readStoredBaseMode() {
+      let stored = "";
+      try {
+        stored = localStorage.getItem(BASE_MODE_STORAGE_KEY) || "";
+      } catch (_err) {}
+      if (!stored) {
+        const match = document.cookie.match(new RegExp(`(?:^|; )${BASE_MODE_COOKIE_NAME}=([^;]+)`));
+        stored = match ? decodeURIComponent(match[1]) : "";
+      }
+      return stored === "6k" ? "6k" : "5k";
+    }
+
+    function writeStoredBaseMode(value) {
+      try {
+        localStorage.setItem(BASE_MODE_STORAGE_KEY, value);
+      } catch (_err) {}
+      document.cookie = `${BASE_MODE_COOKIE_NAME}=${encodeURIComponent(value)}; Max-Age=31536000; Path=/; SameSite=Lax`;
+    }
+
+    let baseModeKey = readStoredBaseMode();
     const SIMS = [
       { id: "5k", role: "base", gapOpacity: 0 },
       { id: "4k", label: "4K", width: 3840, height: 2160, gapOpacity: 0.2 },
@@ -1026,7 +1051,7 @@
     function setBaseMode(nextKey) {
       if (!BASE_MODES[nextKey] || nextKey === baseModeKey) return;
       baseModeKey = nextKey;
-      localStorage.setItem("resolutionBaseMode", baseModeKey);
+      writeStoredBaseMode(baseModeKey);
       buffers.clear();
       updateBaseUI();
       requestDraw();
