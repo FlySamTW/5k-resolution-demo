@@ -2,6 +2,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const { Readable } = require("node:stream");
+const { pipeline } = require("node:stream/promises");
 const Busboy = require("busboy");
 const { ZipArchive } = require("archiver");
 
@@ -15,6 +16,9 @@ const adminPassword = process.env.ADMIN_PASSWORD || "";
 const googleDriveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || "1k705zXDNpHdknPeSPnANBdYDG2wIP_OD";
 const googleDriveApiKey = process.env.GOOGLE_DRIVE_API_KEY || "";
 const googleDriveFolderUrl = `https://drive.google.com/drive/folders/${googleDriveFolderId}?usp=sharing`;
+const driveCacheDir = path.resolve(process.env.DRIVE_CACHE_DIR || path.join(root, ".drive-cache"));
+const maxDriveCacheBytes = Number(process.env.DRIVE_CACHE_MAX_MB || 300) * 1024 * 1024;
+const driveCacheJobs = new Set();
 const localPackageFiles = [
   "index.html",
   "啟動展示.bat",
@@ -157,6 +161,50 @@ function driveMediaSrc(fileId, name) {
   return `/drive-media/${encodeURIComponent(fileId)}/${encodeURIComponent(name)}`;
 }
 
+function isVideoName(name) {
+  return [".mp4", ".webm", ".mkv"].includes(path.extname(name || "").toLowerCase());
+}
+
+function driveCachePath(fileId, name) {
+  const ext = path.extname(name || "").toLowerCase() || ".bin";
+  return path.join(driveCacheDir, `${fileId}${ext}`);
+}
+
+function driveMediaApiUrl(fileId) {
+  const params = new URLSearchParams({
+    alt: "media",
+    key: googleDriveApiKey
+  });
+  return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?${params.toString()}`;
+}
+
+async function primeDriveCache(file) {
+  if (!googleDriveApiKey || !isVideoName(file.name)) return;
+  const id = file.id;
+  const size = Number(file.size || 0);
+  if (!id || (size && size > maxDriveCacheBytes)) return;
+
+  const target = driveCachePath(id, file.name);
+  const temp = `${target}.tmp`;
+  if (fs.existsSync(target) || driveCacheJobs.has(id)) return;
+
+  driveCacheJobs.add(id);
+  try {
+    fs.mkdirSync(driveCacheDir, { recursive: true });
+    const response = await fetch(driveMediaApiUrl(id));
+    if (!response.ok || !response.body) return;
+    await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(temp));
+    fs.renameSync(temp, target);
+  } catch (err) {
+    try {
+      fs.rmSync(temp, { force: true });
+    } catch (_cleanupErr) {}
+    console.warn(`Google Drive cache failed for ${file.name}: ${err.message}`);
+  } finally {
+    driveCacheJobs.delete(id);
+  }
+}
+
 async function proxyDriveMedia(req, res, fileId, name) {
   if (!googleDriveApiKey) {
     res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
@@ -164,16 +212,21 @@ async function proxyDriveMedia(req, res, fileId, name) {
     return;
   }
 
-  const params = new URLSearchParams({
-    alt: "media",
-    key: googleDriveApiKey
+  const cachedPath = driveCachePath(fileId, name);
+  if (fs.existsSync(cachedPath)) {
+    sendFile(req, res, cachedPath);
+    return;
+  }
+  primeDriveCache({ id: fileId, name }).catch((err) => {
+    console.warn(`Google Drive background cache failed for ${name}: ${err.message}`);
   });
+
   const headers = {};
   if (req.headers.range) {
     headers.Range = req.headers.range;
   }
 
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?${params.toString()}`, {
+  const response = await fetch(driveMediaApiUrl(fileId), {
     headers
   });
 
@@ -231,6 +284,9 @@ async function driveFiles() {
         modifiedAt: file.modifiedTime ? Date.parse(file.modifiedTime) : 0,
         thumbnailSrc: file.thumbnailLink || "",
         source: "google-drive"
+      });
+      primeDriveCache(file).catch((err) => {
+        console.warn(`Google Drive background cache failed for ${file.name}: ${err.message}`);
       });
     });
     pageToken = data.nextPageToken || "";

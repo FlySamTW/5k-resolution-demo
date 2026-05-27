@@ -738,25 +738,6 @@
       color: #151515;
     }
 
-    .drive-link {
-      display: none;
-      position: absolute;
-      left: 12px;
-      bottom: 10px;
-      z-index: 5;
-      padding: 6px 10px;
-      border: 1px solid rgba(240, 166, 78, 0.5);
-      border-radius: 8px;
-      background: rgba(20, 16, 12, 0.9);
-      color: #ffe0b9;
-      font-size: 13px;
-      text-decoration: none;
-    }
-
-    body.cloud .drive-link {
-      display: inline-flex;
-    }
-
     @media (max-width: 820px) {
       body {
         grid-template-rows: auto 1fr auto;
@@ -885,7 +866,7 @@
 
   <div class="download-modal" id="info-modal" role="dialog" aria-modal="true" aria-labelledby="info-title">
     <div class="download-card info-card">
-      <h2 id="info-title">這個展示怎麼看</h2>
+      <h2 id="info-title">三星高解析螢幕專用展示模式說明：</h2>
       <p>四個畫面的大小是一樣的，也會一起看同一個位置。差別只在於：如果同樣是這個尺寸的螢幕，解析度少一點時，細節和點距會變成什麼感覺。</p>
       <ul class="plain-list">
         <li>基準那一格代表目前要展示的原生解析度，可點 5K / 6K 互相切換。</li>
@@ -910,7 +891,6 @@
   </div>
 
   <footer class="thumb-panel">
-    <a class="drive-link" id="drive-link" href="https://drive.google.com/drive/folders/1k705zXDNpHdknPeSPnANBdYDG2wIP_OD?usp=sharing" target="_blank" rel="noopener">雲端硬碟</a>
     <div class="pager">
       <button class="pager-btn" id="prev-page" type="button">上一頁</button>
       <span id="page-indicator">第 1 / 1 頁</span>
@@ -949,7 +929,6 @@
     const mediaCountBadge = document.getElementById("media-count-badge");
     const thumbGrid = document.getElementById("thumb-grid");
     const immersiveDots = document.getElementById("immersive-dots");
-    const driveLink = document.getElementById("drive-link");
     const emptyMsg = document.getElementById("empty-msg");
     const prevBtn = document.getElementById("prev-page");
     const nextBtn = document.getElementById("next-page");
@@ -1059,18 +1038,6 @@
       const isLocal = host === "localhost" || host === "127.0.0.1" || host === "" || window.location.protocol === "file:";
       document.body.classList.toggle("cloud", !isLocal);
       document.body.classList.toggle("local", isLocal && window.location.protocol !== "file:");
-    }
-
-    async function loadDriveConfig() {
-      if (!driveLink || window.location.protocol === "file:") return;
-      try {
-        const response = await fetch("/api/drive-config", { cache: "no-store" });
-        if (!response.ok) return;
-        const data = await response.json();
-        if (data.folderUrl) {
-          driveLink.href = data.folderUrl;
-        }
-      } catch (_err) {}
     }
 
     function detectMobileExperience() {
@@ -2042,7 +2009,6 @@
       updateOrientationClass();
       applyInitialMode();
       bindEvents();
-      await loadDriveConfig();
       updateBaseUI();
       resizeCanvases();
       mediaList = await fetchMediaList();
